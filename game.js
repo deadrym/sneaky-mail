@@ -12,16 +12,16 @@ const VIEW_H = canvas.height;
    behavior: 'pace' (walks a patrol line), 'sentry' (stands still, sweeps gaze),
              'sleepy' (naps on a timer, blind while asleep), 'erratic' (random direction changes) */
 const BREEDS = {
-  dachshund:  { name: 'Dachshund',        color: '#a35d2b', dark: '#7a4620', light: '#c98a4f', collar: '#3b6ea5', earStyle: 'floppy', size: 0.85, range: 65,  coneDeg: 50, speed: 24, fillRate: 0.55, behavior: 'pace' },
-  bulldog:    { name: 'Bulldog',          color: '#c9a877', dark: '#8a6f4e', light: '#e6cfa0', collar: '#b23a3a', earStyle: 'floppy', size: 1.10, range: 68,  coneDeg: 55, speed: 16, fillRate: 0.50, behavior: 'sleepy' },
-  corgi:      { name: 'Corgi',            color: '#e0a94a', dark: '#8a5a1e', light: '#f0c878', collar: '#3a8a5a', earStyle: 'pointy', size: 0.90, range: 80,  coneDeg: 55, speed: 30, fillRate: 0.60, behavior: 'pace' },
-  beagle:     { name: 'Beagle',           color: '#caa06a', dark: '#5a3a1e', light: '#e0bd8c', collar: '#c9862e', earStyle: 'floppy', size: 0.95, range: 92,  coneDeg: 60, speed: 34, fillRate: 0.65, behavior: 'pace' },
-  poodle:     { name: 'Poodle',           color: '#f2ead9', dark: '#cbbfa0', light: '#ffffff', collar: '#a83a8a', earStyle: 'floppy', size: 1.00, range: 85,  coneDeg: 65, speed: 32, fillRate: 0.70, behavior: 'erratic' },
-  husky:      { name: 'Husky',            color: '#7d8896', dark: '#333a42', light: '#a7b3c0', collar: '#d94f4f', earStyle: 'pointy', size: 1.05, range: 112, coneDeg: 60, speed: 30, fillRate: 0.75, behavior: 'sentry' },
-  shepherd:   { name: 'German Shepherd',  color: '#8a5a2e', dark: '#2a1a10', light: '#b07d45', collar: '#2e6b8a', earStyle: 'pointy', size: 1.10, range: 122, coneDeg: 70, speed: 48, fillRate: 0.85, behavior: 'pace' },
-  rottweiler: { name: 'Rottweiler',       color: '#2a2018', dark: '#0f0b08', light: '#4a4038', collar: '#c9a23a', earStyle: 'floppy', size: 1.20, range: 106, coneDeg: 60, speed: 36, fillRate: 0.85, behavior: 'sentry' },
-  greatdane:  { name: 'Great Dane',       color: '#b8a98f', dark: '#5a4a35', light: '#d8cbb0', collar: '#5a3a8a', earStyle: 'floppy', size: 1.30, range: 138, coneDeg: 50, speed: 34, fillRate: 0.80, behavior: 'sentry' },
-  doberman:   { name: 'Doberman',         color: '#1c1410', dark: '#000000', light: '#3a2e28', collar: '#c94141', earStyle: 'pointy', size: 1.15, range: 150, coneDeg: 75, speed: 54, fillRate: 1.00, behavior: 'pace' },
+  chihuahua:   { name: 'Chihuahua',              color: '#d9c199', dark: '#b8905a', light: '#f0e0bc', collar: '#3a6ea8', earStyle: 'pointy', size: 0.60, range: 55,  coneDeg: 50, speed: 40, fillRate: 0.50, behavior: 'pace' },
+  dachshund:   { name: 'Dachshund',              color: '#a35d2b', dark: '#7a4620', light: '#c98a4f', collar: '#3a6ea8', earStyle: 'floppy', size: 0.80, range: 65,  coneDeg: 50, speed: 24, fillRate: 0.55, behavior: 'pace' },
+  shihtzu:     { name: 'Shih Tzu',               color: '#f0e6d2', dark: '#c9b48a', light: '#fff8ea', collar: '#3a6ea8', earStyle: 'floppy', size: 0.75, range: 60,  coneDeg: 50, speed: 18, fillRate: 0.45, behavior: 'sleepy' },
+  frenchbulldog:{ name: 'French Bulldog',        color: '#4a4a52', dark: '#2a2a30', light: '#6a6a72', collar: '#3a6ea8', earStyle: 'pointy', size: 0.90, range: 75,  coneDeg: 60, speed: 20, fillRate: 0.60, behavior: 'sentry' },
+  yorkie:      { name: 'Yorkshire Terrier',      color: '#8a6a3a', dark: '#2a2018', light: '#c9a25a', collar: '#3a6ea8', earStyle: 'pointy', size: 0.65, range: 85,  coneDeg: 60, speed: 34, fillRate: 0.70, behavior: 'erratic' },
+  labrador:    { name: 'Labrador Retriever',     color: '#2e2a26', dark: '#0f0d0b', light: '#4a453f', collar: '#3a6ea8', earStyle: 'floppy', size: 1.05, range: 95,  coneDeg: 60, speed: 34, fillRate: 0.65, behavior: 'pace' },
+  goldendoodle:{ name: 'Goldendoodle',           color: '#e0c078', dark: '#b89050', light: '#f5e0b0', collar: '#3a6ea8', earStyle: 'floppy', size: 1.00, range: 90,  coneDeg: 65, speed: 32, fillRate: 0.70, behavior: 'erratic' },
+  goldenretriever:{ name: 'Golden Retriever',    color: '#e8a83a', dark: '#b8781e', light: '#f7c96a', collar: '#3a6ea8', earStyle: 'floppy', size: 1.05, range: 105, coneDeg: 65, speed: 34, fillRate: 0.75, behavior: 'sentry' },
+  shepherd:    { name: 'German Shepherd',        color: '#8a5a2e', dark: '#2a1a10', light: '#b07d45', collar: '#3a6ea8', earStyle: 'pointy', size: 1.10, range: 122, coneDeg: 70, speed: 48, fillRate: 0.85, behavior: 'pace' },
+  pitbull:     { name: 'American Pit Bull Terrier', color: '#8a8f94', dark: '#4a4e52', light: '#b5b9bc', collar: '#3a6ea8', earStyle: 'pointy', size: 1.15, range: 135, coneDeg: 70, speed: 46, fillRate: 0.90, behavior: 'sentry' },
 };
 
 /* House siding/roof/door/trim color variants, cycled per house for street variety */
@@ -35,16 +35,16 @@ const HOUSE_PALETTES = [
 
 /* ---------- Level configs ---------- */
 const LEVELS = [
-  { houses: 3, breeds: ['dachshund', 'bulldog'],                         doubleDogHouses: 0, bushChance: 0.85, desc: 'A quiet street. Easy does it.' },
-  { houses: 4, breeds: ['dachshund', 'bulldog', 'corgi'],                 doubleDogHouses: 0, bushChance: 0.75, desc: 'A few more houses to cover.' },
-  { houses: 4, breeds: ['corgi', 'beagle', 'bulldog'],                    doubleDogHouses: 1, bushChance: 0.65, desc: 'One house has backup.' },
-  { houses: 5, breeds: ['beagle', 'poodle', 'corgi'],                     doubleDogHouses: 1, bushChance: 0.55, desc: 'Poodles move unpredictably. Watch closely.' },
-  { houses: 5, breeds: ['poodle', 'beagle', 'husky'],                     doubleDogHouses: 2, bushChance: 0.45, desc: 'Huskies stand and stare a long way off.' },
-  { houses: 6, breeds: ['husky', 'shepherd', 'poodle'],                   doubleDogHouses: 2, bushChance: 0.35, desc: 'Shepherds are fast and alert. Stay sharp.' },
-  { houses: 6, breeds: ['shepherd', 'rottweiler', 'husky'],               doubleDogHouses: 3, bushChance: 0.25, desc: 'Heavy muscle on this block.' },
-  { houses: 7, breeds: ['rottweiler', 'greatdane', 'shepherd'],           doubleDogHouses: 3, bushChance: 0.20, desc: 'Great Danes see for miles. Few bushes left.' },
-  { houses: 8, breeds: ['greatdane', 'doberman', 'rottweiler'],           doubleDogHouses: 4, bushChance: 0.10, desc: 'Nearly no cover. Nerves of steel required.' },
-  { houses: 9, breeds: ['doberman', 'greatdane', 'rottweiler', 'shepherd'], doubleDogHouses: 5, bushChance: 0.05, desc: 'The final gauntlet. Every elite breed on the route.' },
+  { houses: 3, breeds: ['chihuahua', 'dachshund'],                              doubleDogHouses: 0, bushChance: 0.85, desc: 'A quiet street. Easy does it.' },
+  { houses: 4, breeds: ['dachshund', 'chihuahua', 'shihtzu'],                   doubleDogHouses: 0, bushChance: 0.75, desc: 'A few more houses to cover.' },
+  { houses: 4, breeds: ['shihtzu', 'frenchbulldog', 'dachshund'],              doubleDogHouses: 1, bushChance: 0.65, desc: 'One house has backup.' },
+  { houses: 5, breeds: ['frenchbulldog', 'yorkie', 'shihtzu'],                 doubleDogHouses: 1, bushChance: 0.55, desc: 'Yorkies move unpredictably. Watch closely.' },
+  { houses: 5, breeds: ['yorkie', 'labrador', 'frenchbulldog'],               doubleDogHouses: 2, bushChance: 0.45, desc: 'French Bulldogs stand and stare a long way off.' },
+  { houses: 6, breeds: ['labrador', 'goldendoodle', 'yorkie'],                doubleDogHouses: 2, bushChance: 0.35, desc: 'Goldendoodles are quick and unpredictable. Stay sharp.' },
+  { houses: 6, breeds: ['goldendoodle', 'goldenretriever', 'labrador'],       doubleDogHouses: 3, bushChance: 0.25, desc: 'Heavy coverage on this block.' },
+  { houses: 7, breeds: ['goldenretriever', 'shepherd', 'goldendoodle'],       doubleDogHouses: 3, bushChance: 0.20, desc: 'German Shepherds see for miles. Few bushes left.' },
+  { houses: 8, breeds: ['shepherd', 'pitbull', 'goldenretriever'],            doubleDogHouses: 4, bushChance: 0.10, desc: 'Nearly no cover. Nerves of steel required.' },
+  { houses: 9, breeds: ['pitbull', 'shepherd', 'goldenretriever', 'labrador'], doubleDogHouses: 5, bushChance: 0.05, desc: 'The final gauntlet. Every elite breed on the route.' },
 ];
 
 const HOUSE_H = 210;
@@ -616,74 +616,104 @@ function drawRoad(w) {
   ctx.setLineDash([]);
 }
 
+// Houses are drawn in a 3/4 top-down style (a la classic Zelda/Stardew towns):
+// the roof recedes toward the back of the lot (away from the street) while a
+// tall front facade -- with door, windows, and its own drop-shadow -- faces
+// the street, so the building reads as a volume instead of a flat roof-plan.
 function drawHouse(h) {
   const r = h.wallRect;
   const pal = h.palette;
-  const flip = h.side === 'right';
+  const flip = h.side === 'right'; // true: house is right of the street, facade faces left (-x)
 
-  // soft ground shadow
-  ctx.fillStyle = 'rgba(0,0,0,0.18)';
-  ctx.fillRect(r.x + (flip ? -6 : 6), r.y + 8, r.w, r.h - 4);
+  const roofDepth = r.w * 0.4;
+  // facade zone = near the yard/street edge; roof zone = near the back edge
+  const facadeX0 = flip ? r.x : r.x + roofDepth;
+  const facadeX1 = flip ? r.x + r.w - roofDepth : r.x + r.w;
+  const roofX0 = flip ? facadeX1 : r.x;
+  const roofX1 = flip ? r.x + r.w : facadeX0;
+  const facadeW = facadeX1 - facadeX0;
 
-  // roof/siding base
-  ctx.fillStyle = pal.siding;
-  ctx.fillRect(r.x, r.y, r.w, r.h);
-  // vertical siding texture
-  ctx.strokeStyle = 'rgba(0,0,0,0.07)';
-  ctx.lineWidth = 1;
-  for (let lx = r.x + 10; lx < r.x + r.w; lx += 11) {
-    ctx.beginPath();
-    ctx.moveTo(lx, r.y + 14);
-    ctx.lineTo(lx, r.y + r.h - 14);
-    ctx.stroke();
-  }
+  // ground shadow cast by the whole building onto the yard
+  ctx.fillStyle = 'rgba(0,0,0,0.2)';
+  ctx.fillRect(r.x, r.y + r.h - 3, r.w, 8);
+  ctx.fillRect(flip ? r.x + r.w : r.x - 5, r.y + 3, 5, r.h - 3);
 
-  // gable roof caps (top & bottom) with ridge + shingle ticks
-  const capH = 16;
+  // --- roof zone (receding, away from the street) ---
   ctx.fillStyle = pal.roof;
-  ctx.fillRect(r.x, r.y, r.w, capH);
-  ctx.fillRect(r.x, r.y + r.h - capH, r.w, capH);
+  ctx.fillRect(roofX0, r.y, roofX1 - roofX0, r.h);
   ctx.strokeStyle = 'rgba(0,0,0,0.25)';
   ctx.lineWidth = 1;
-  for (let lx = r.x + 6; lx < r.x + r.w; lx += 9) {
+  const ridgeX = (roofX0 + roofX1) / 2;
+  for (let ly = r.y + 6; ly < r.y + r.h; ly += 9) {
     ctx.beginPath();
-    ctx.moveTo(lx, r.y + 2); ctx.lineTo(lx, r.y + capH - 2);
-    ctx.moveTo(lx, r.y + r.h - capH + 2); ctx.lineTo(lx, r.y + r.h - 2);
+    ctx.moveTo(ridgeX, ly);
+    ctx.lineTo(flip ? roofX1 - 3 : roofX0 + 3, ly + 2);
+    ctx.moveTo(ridgeX, ly);
+    ctx.lineTo(flip ? roofX0 + 3 : roofX1 - 3, ly + 2);
     ctx.stroke();
   }
-  ctx.strokeStyle = 'rgba(255,255,255,0.25)';
+  ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+  ctx.lineWidth = 1.5;
   ctx.beginPath();
-  ctx.moveTo(r.x, r.y + capH); ctx.lineTo(r.x + r.w, r.y + capH);
-  ctx.moveTo(r.x, r.y + r.h - capH); ctx.lineTo(r.x + r.w, r.y + r.h - capH);
+  ctx.moveTo(ridgeX, r.y + 2);
+  ctx.lineTo(ridgeX, r.y + r.h - 2);
   ctx.stroke();
 
-  // chimney
+  // --- facade zone (tall front wall facing the street) ---
+  ctx.fillStyle = pal.siding;
+  ctx.fillRect(facadeX0, r.y, facadeW, r.h);
+  ctx.strokeStyle = 'rgba(0,0,0,0.06)';
+  ctx.lineWidth = 1;
+  for (let ly = r.y + 8; ly < r.y + r.h - 6; ly += 9) {
+    ctx.beginPath();
+    ctx.moveTo(facadeX0 + 2, ly);
+    ctx.lineTo(facadeX1 - 2, ly);
+    ctx.stroke();
+  }
+  // eave overhang shadow where the roof meets the facade
+  const eaveX = flip ? facadeX1 : facadeX0;
+  const shadowGrad = ctx.createLinearGradient(
+    flip ? eaveX : eaveX, 0, flip ? eaveX - 10 : eaveX + 10, 0
+  );
+  shadowGrad.addColorStop(0, 'rgba(0,0,0,0.32)');
+  shadowGrad.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = shadowGrad;
+  ctx.fillRect(flip ? eaveX - 10 : eaveX, r.y, 10, r.h);
+  ctx.strokeStyle = pal.trim;
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(eaveX, r.y); ctx.lineTo(eaveX, r.y + r.h);
+  ctx.stroke();
+  // gable-end trim strip along the top edge of the facade (hints a side wall)
+  ctx.fillStyle = 'rgba(0,0,0,0.12)';
+  ctx.fillRect(facadeX0, r.y, facadeW, 5);
+
+  // chimney, mounted on the roof zone
   if (h.hasChimney) {
-    const chX = flip ? r.x + r.w - 26 : r.x + 12;
+    const chX = flip ? roofX1 - 20 : roofX0 + 8;
     ctx.fillStyle = '#8a5a4a';
-    ctx.fillRect(chX, r.y - 6, 14, 18);
+    ctx.fillRect(chX, r.y + 6, 14, 18);
     ctx.fillStyle = '#6b4238';
-    ctx.fillRect(chX - 2, r.y - 8, 18, 5);
+    ctx.fillRect(chX - 2, r.y + 4, 18, 5);
     ctx.fillStyle = 'rgba(255,255,255,0.4)';
     ctx.beginPath();
-    ctx.ellipse(chX + 6, r.y - 14, 4, 3.4, 0, 0, Math.PI * 2);
+    ctx.ellipse(chX + 6, r.y - 4, 4, 3.4, 0, 0, Math.PI * 2);
     ctx.fill();
     ctx.fillStyle = 'rgba(255,255,255,0.28)';
     ctx.beginPath();
-    ctx.ellipse(chX + 10, r.y - 21, 5.5, 4.4, 0, 0, Math.PI * 2);
+    ctx.ellipse(chX + 10, r.y - 11, 5.5, 4.4, 0, 0, Math.PI * 2);
     ctx.fill();
     ctx.fillStyle = 'rgba(255,255,255,0.18)';
     ctx.beginPath();
-    ctx.ellipse(chX + 15, r.y - 29, 7, 5.5, 0, 0, Math.PI * 2);
+    ctx.ellipse(chX + 15, r.y - 19, 7, 5.5, 0, 0, Math.PI * 2);
     ctx.fill();
   }
 
-  // windows
-  const winXs = flip ? [r.x + r.w * 0.55] : [r.x + r.w * 0.2];
+  // windows, within the facade zone
+  const winX = flip ? facadeX0 + 8 : facadeX1 - 30;
   const winYs = [r.y + 24, r.y + r.h - 46];
   winYs.forEach((wy, i) => {
-    const wx = winXs[0];
-    drawWindow(wx, wy, 22, 22, pal.trim, h.flowerWindow === i);
+    drawWindow(winX, wy, 22, 22, pal.trim, h.flowerWindow === i);
   });
 
   // door with frame, panels, awning, knob
