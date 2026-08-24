@@ -451,28 +451,51 @@ function makeHouse(side, topY, cfg, index, corridorBaseX) {
 
   // decorative dressing (purely visual, no collision): trees, flower beds,
   // rocks, and a street lamp near the curb -- density/mix varies by theme
-  // so each yard reads as its own distinct little setup
+  // so each yard reads as its own distinct little setup. Items are placed
+  // via rejection sampling against everything placed so far (plus the path
+  // and mailbox), so the yard reads as a handful of deliberate little
+  // clusters instead of decor scattered on top of itself everywhere.
   const trees = [], flowerBeds = [], rocks = [];
-  const treeCount = theme === 'wooded' ? 2 + Math.floor(Math.random() * 2) : theme === 'garden' ? 1 : theme === 'minimal' ? 0 : 1;
-  const flowerCount = theme === 'garden' ? 3 + Math.floor(Math.random() * 2) : theme === 'ornamental' ? 2 : theme === 'wooded' ? 1 : 0;
-  const rockCount = theme === 'wooded' ? 2 + Math.floor(Math.random() * 2) : theme === 'ornamental' ? 2 : 1;
+  const treeCount = theme === 'wooded' ? 2 : theme === 'minimal' ? 0 : 1;
+  const flowerCount = theme === 'garden' ? 2 : theme === 'ornamental' || theme === 'wooded' ? 1 : 0;
+  const rockCount = theme === 'minimal' ? 1 : theme === 'wooded' ? 2 : 1;
 
-  const placeInYard = (marginX, marginY) => ({
-    x: clamp(yardX + marginX + Math.random() * (yardW - marginX * 2), yardX + 4, yardX + yardW - 4),
-    y: clamp(topY + marginY + Math.random() * (HOUSE_H - marginY * 2), topY + 4, topY + HOUSE_H - 4),
-  });
+  const placedSpots = [{ x: mailbox.x, y: mailbox.y, r: 32 }, { x: porchX, y: doorCenterY, r: 28 }];
+  for (const s of pathStones) placedSpots.push({ x: s.x, y: s.y, r: 15 });
+
+  // tries a handful of random candidates in the yard and keeps whichever
+  // clears existing decor/path/mailbox by the most room
+  function placeDecor(minR, marginX = 18, marginY = 18, tries = 12) {
+    let best = null, bestScore = -Infinity;
+    for (let i = 0; i < tries; i++) {
+      const cand = {
+        x: clamp(yardX + marginX + Math.random() * (yardW - marginX * 2), yardX + 4, yardX + yardW - 4),
+        y: clamp(topY + marginY + Math.random() * (HOUSE_H - marginY * 2), topY + 4, topY + HOUSE_H - 4),
+      };
+      let clearance = Infinity;
+      for (const s of placedSpots) clearance = Math.min(clearance, dist(cand.x, cand.y, s.x, s.y) - s.r);
+      if (clearance > bestScore) { bestScore = clearance; best = cand; }
+      if (clearance >= minR) break;
+    }
+    placedSpots.push({ x: best.x, y: best.y, r: minR });
+    return best;
+  }
+
   for (let t = 0; t < treeCount; t++) {
-    const p = placeInYard(24, 28);
+    const treeR = 16 + Math.random() * 8;
+    const p = placeDecor(treeR + 16, 24, 28);
     const kind = theme === 'ornamental' && Math.random() < 0.4 ? 'blossom' : (Math.random() < 0.5 ? 'pine' : 'round');
-    trees.push({ x: p.x, y: p.y, r: 16 + Math.random() * 8, kind });
+    trees.push({ x: p.x, y: p.y, r: treeR, kind });
   }
   for (let f = 0; f < flowerCount; f++) {
-    const p = placeInYard(16, 16);
-    flowerBeds.push({ x: p.x, y: p.y, w: 20 + Math.random() * 14, h: 14 + Math.random() * 8, dense: theme === 'garden' });
+    const fw = 20 + Math.random() * 14, fh = 14 + Math.random() * 8;
+    const p = placeDecor(Math.max(fw, fh) / 2 + 12, 16, 16);
+    flowerBeds.push({ x: p.x, y: p.y, w: fw, h: fh, dense: theme === 'garden' });
   }
   for (let r = 0; r < rockCount; r++) {
-    const p = placeInYard(12, 12);
-    rocks.push({ x: p.x, y: p.y, r: 4 + Math.random() * 4 });
+    const rockR = 4 + Math.random() * 4;
+    const p = placeDecor(rockR + 14, 12, 12);
+    rocks.push({ x: p.x, y: p.y, r: rockR });
   }
   // lamp post stands on the sidewalk (the street's outer margin), not in the yard
   const lamp = { x: side === 'left' ? streetX0 + 12 : streetX0 + STREET_W - 12, y: topY + HOUSE_H - 20 };
@@ -481,21 +504,13 @@ function makeHouse(side, topY, cfg, index, corridorBaseX) {
   // to the theme, not a prop on every lawn
   const props = [];
   if (theme === 'garden') {
-    const p1 = placeInYard(20, 20);
+    const p1 = placeDecor(28, 20, 20);
     props.push({ kind: 'fountain', x: p1.x, y: p1.y });
-    if (Math.random() < 0.6) {
-      const p2 = placeInYard(20, 20);
-      props.push({ kind: 'bench', x: p2.x, y: p2.y, rot: Math.random() < 0.5 ? 0 : Math.PI / 2 });
-    }
   } else if (theme === 'ornamental') {
-    const p1 = placeInYard(16, 16);
+    const p1 = placeDecor(18, 16, 16);
     props.push({ kind: 'gnome', x: p1.x, y: p1.y });
-    if (Math.random() < 0.5) {
-      const p2 = placeInYard(20, 20);
-      props.push({ kind: 'bench', x: p2.x, y: p2.y, rot: Math.random() < 0.5 ? 0 : Math.PI / 2 });
-    }
-  } else if (theme === 'wooded' && Math.random() < 0.5) {
-    const p1 = placeInYard(20, 20);
+  } else if (theme === 'wooded' && Math.random() < 0.6) {
+    const p1 = placeDecor(24, 20, 20);
     props.push({ kind: 'bench', x: p1.x, y: p1.y, rot: Math.random() < 0.5 ? 0 : Math.PI / 2 });
   }
 
@@ -1332,7 +1347,10 @@ function drawHouse(h) {
   const pal = h.palette;
   const flip = h.side === 'right'; // true: house is right of the street, facade faces left (-x)
 
-  const roofDepth = r.w * 0.56;
+  // the roof dominates the footprint (as seen from above) with only a
+  // narrow front-wall band visible along the street/yard edge -- matching
+  // a real bird's-eye house read, rather than a roughly 50/50 split
+  const roofDepth = r.w * 0.7;
   // facade zone = near the yard/street edge; roof zone = near the back edge
   const facadeX0 = flip ? r.x : r.x + roofDepth;
   const facadeX1 = flip ? r.x + r.w - roofDepth : r.x + r.w;
@@ -1342,9 +1360,9 @@ function drawHouse(h) {
 
   // ground shadow cast by the whole building onto the yard -- deliberately
   // heavier than a flat-plan sprite would need, to sell the roof's height
-  ctx.fillStyle = 'rgba(0,0,0,0.32)';
-  ctx.fillRect(r.x, r.y + r.h - 2, r.w, 12);
-  ctx.fillRect(flip ? r.x + r.w : r.x - 8, r.y + 3, 8, r.h - 3);
+  ctx.fillStyle = 'rgba(0,0,0,0.38)';
+  ctx.fillRect(r.x, r.y + r.h - 2, r.w, 14);
+  ctx.fillRect(flip ? r.x + r.w : r.x - 10, r.y + 3, 10, r.h - 3);
 
   // --- roof zone (receding, away from the street) ---
   const roofStyle = pal.roofStyle || 'gable';
@@ -1370,17 +1388,27 @@ function drawHouse(h) {
   foundGrad.addColorStop(1, 'rgba(0,0,0,0.22)');
   ctx.fillStyle = foundGrad;
   ctx.fillRect(facadeX0, r.y + r.h - 8, facadeW, 8);
-  // eave overhang shadow where the roof meets the facade
+  // eave overhang shadow where the roof meets the facade -- this height
+  // break (dark shadow falling onto the wall, bright fascia rim on the
+  // roof side) is what actually sells the roof as sitting above and in
+  // front of the wall, instead of two adjacent flat patches of color
   const eaveX = flip ? facadeX1 : facadeX0;
   const shadowGrad = ctx.createLinearGradient(
-    flip ? eaveX : eaveX, 0, flip ? eaveX - 10 : eaveX + 10, 0
+    flip ? eaveX : eaveX, 0, flip ? eaveX - 15 : eaveX + 15, 0
   );
-  shadowGrad.addColorStop(0, 'rgba(0,0,0,0.32)');
+  shadowGrad.addColorStop(0, 'rgba(0,0,0,0.48)');
   shadowGrad.addColorStop(1, 'rgba(0,0,0,0)');
   ctx.fillStyle = shadowGrad;
-  ctx.fillRect(flip ? eaveX - 10 : eaveX, r.y, 10, r.h);
+  ctx.fillRect(flip ? eaveX - 15 : eaveX, r.y, 15, r.h);
+  const fasciaGrad = ctx.createLinearGradient(
+    flip ? eaveX : eaveX, 0, flip ? eaveX + 8 : eaveX - 8, 0
+  );
+  fasciaGrad.addColorStop(0, 'rgba(255,255,255,0.5)');
+  fasciaGrad.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.fillStyle = fasciaGrad;
+  ctx.fillRect(flip ? eaveX : eaveX - 8, r.y, 8, r.h);
   ctx.strokeStyle = pal.trim;
-  ctx.lineWidth = 2;
+  ctx.lineWidth = 2.4;
   ctx.beginPath();
   ctx.moveTo(eaveX, r.y); ctx.lineTo(eaveX, r.y + r.h);
   ctx.stroke();
@@ -1512,10 +1540,10 @@ function drawBush(b) {
 // procedural flag + checkmark badge is layered on top so "flag up = done"
 // reads the same regardless of which mailbox sprite is in use.
 // The mailbox art is drawn at a slight angle with its opening/flag on the
-// right side of the image, so it only reads as "facing the street" for
-// left-side houses (street to the right) by default -- right-side houses
-// (street to the left) need the whole thing mirrored so it opens the
-// other way instead of facing back into the house.
+// left side of the image by default, so it only reads as "facing the
+// street" for right-side houses (street to the left) as-is -- left-side
+// houses (street to the right) need the whole thing mirrored so it opens
+// toward the street instead of back into the house.
 function drawMailbox(mb, side) {
   const img = IMAGES[`mailboxes.${mb.style}`];
   const groundY = mb.y + 16;
@@ -1527,7 +1555,7 @@ function drawMailbox(mb, side) {
   const dispH = 40;
   ctx.save();
   ctx.translate(mb.x, groundY);
-  if (side === 'right') ctx.scale(-1, 1);
+  if (side === 'left') ctx.scale(-1, 1);
   const dispW = drawSprite(img, 0, 0, dispH, 'bottom') || dispH * 0.7;
 
   const flagX = dispW * 0.32;
