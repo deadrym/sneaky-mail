@@ -184,11 +184,22 @@ function rowSlotY(rowSlot) {
   const rowInBlock = rowSlot % ROWS_PER_BLOCK;
   return MARGIN_TOP + blockIndex * (ROWS_PER_BLOCK * ROW_H + STREET_W) + rowInBlock * ROW_H;
 }
+// One band per *complete* ROWS_PER_BLOCK-row block, which are always
+// correctly positioned right after their block -- plus one more band right
+// after the true last row whenever the final block is only partially
+// filled (an odd rowSlotCount), so the two corridors are always joined by
+// at least one street instead of that trailing connector silently landing
+// past the edge of the map and getting cut off.
 function crossStreetBands(rowSlotCount) {
-  const blocks = Math.ceil(rowSlotCount / ROWS_PER_BLOCK);
+  if (rowSlotCount <= 0) return [];
+  const fullBlocks = Math.floor(rowSlotCount / ROWS_PER_BLOCK);
   const bands = [];
-  for (let b = 0; b < blocks; b++) {
+  for (let b = 0; b < fullBlocks; b++) {
     const y0 = MARGIN_TOP + b * (ROWS_PER_BLOCK * ROW_H + STREET_W) + ROWS_PER_BLOCK * ROW_H;
+    bands.push({ y0, y1: y0 + STREET_W });
+  }
+  if (rowSlotCount % ROWS_PER_BLOCK !== 0) {
+    const y0 = rowSlotY(rowSlotCount - 1) + HOUSE_H + HOUSE_GAP;
     bands.push({ y0, y1: y0 + STREET_W });
   }
   return bands;
@@ -334,8 +345,13 @@ function buildWorld(levelIndex) {
   }
 
   const worldW = corridorX0(CORRIDOR_COUNT - 1) + CORRIDOR_W;
-  const worldH = rowSlotY(rowSlotCount - 1) + HOUSE_H + MARGIN_BOTTOM;
-  const crossStreets = crossStreetBands(rowSlotCount).filter((b) => b.y1 < worldH);
+  const crossStreets = crossStreetBands(rowSlotCount);
+  // the world must extend past whichever is lower: the last row of houses,
+  // or the last cross street (which always sits at or below the last row) --
+  // otherwise a trailing connector street could get clipped off the map
+  const lastRowBottom = rowSlotY(rowSlotCount - 1) + HOUSE_H;
+  const lastBandBottom = crossStreets.length ? crossStreets[crossStreets.length - 1].y1 : lastRowBottom;
+  const worldH = Math.max(lastRowBottom, lastBandBottom) + MARGIN_BOTTOM;
   const totalMail = houses.length;
 
   // static decorative elements, precomputed once so they don't flicker/jitter each frame
