@@ -478,17 +478,12 @@ function makeHouse(side, topY, cfg, index, corridorBaseX) {
       breedKey, breed,
       x: porchX,
       y: anchorY,
-      homeX: porchX,
-      homeY: anchorY,
       angle: facingAngle,
       baseAngle: facingAngle,
       side,
       suspicion: 0,
       state: 'awake',
       sleepTimer: breed.behavior === 'sleepy' ? 2 + Math.random() * 2 : 0,
-      patrolDir: 1,
-      patrolRange: 34,
-      sweepDir: 1,
       sweepT: Math.random() * Math.PI * 2,
       seen: false,
       animTimer: Math.random() * 0.18,
@@ -660,28 +655,44 @@ function updateDog(dog, house, dt, w) {
     }
   }
 
-  if (breed.behavior === 'pace') {
-    dog.x += dog.patrolDir * breed.speed * 0.5 * dt;
-    if (dog.x > dog.homeX + dog.patrolRange) dog.patrolDir = -1;
-    if (dog.x < dog.homeX - dog.patrolRange) dog.patrolDir = 1;
-    dog.angle = dog.baseAngle; // always faces the street while pacing the porch
-  } else if (breed.behavior === 'sentry') {
+  // Dogs roam freely around the whole yard: walk to a random point inside
+  // it, pause there for a bit (swaying/sweeping their gaze), then pick a
+  // new point. Behavior still gives each breed a distinct feel: 'sentry'
+  // lingers longest and moves slowest, 'erratic' barely pauses and moves
+  // fastest, 'pace' sits in between.
+  const yr = house.yardRect;
+  const margin = 20;
+  if (dog.wanderPhase === undefined) { dog.wanderPhase = 'paused'; dog.wanderTimer = 0; }
+
+  if (dog.wanderPhase === 'paused') {
     dog.sweepT += dt * (breed.speed / 40);
-    const sweep = Math.sin(dog.sweepT) * (breed.coneDeg * Math.PI / 180) * 0.6;
-    dog.angle = dog.baseAngle + sweep;
-  } else if (breed.behavior === 'erratic') {
-    dog.sweepT += dt;
-    if (dog.sweepT > 1.2) {
-      dog.sweepT = 0;
-      dog.patrolDir = Math.random() < 0.5 ? -1 : 1;
+    dog.angle = dog.baseAngle + Math.sin(dog.sweepT) * 0.6;
+    dog.wanderTimer -= dt;
+    if (dog.wanderTimer <= 0) {
+      dog.wanderX = yr.x + margin + Math.random() * (yr.w - margin * 2);
+      dog.wanderY = yr.y + margin + Math.random() * (yr.h - margin * 2);
+      dog.wanderPhase = 'moving';
+      dog.wanderTimer = 5 + Math.random() * 3; // failsafe: give up and re-pause if travel takes too long
     }
-    dog.x += dog.patrolDir * breed.speed * 0.35 * dt;
-    dog.x = clamp(dog.x, dog.homeX - dog.patrolRange, dog.homeX + dog.patrolRange);
-    dog.angle = dog.baseAngle + Math.sin(dog.sweepT * 3) * 0.5;
+  } else {
+    const dx = dog.wanderX - dog.x, dy = dog.wanderY - dog.y;
+    const d = Math.hypot(dx, dy);
+    dog.wanderTimer -= dt;
+    if (d > 4 && dog.wanderTimer > 0) {
+      const speedMul = breed.behavior === 'sentry' ? 0.55 : breed.behavior === 'erratic' ? 1.0 : 0.75;
+      dog.x += (dx / d) * breed.speed * speedMul * dt;
+      dog.y += (dy / d) * breed.speed * speedMul * dt;
+      dog.angle = Math.atan2(dy, dx);
+    } else {
+      dog.wanderPhase = 'paused';
+      const pauseRange = breed.behavior === 'sentry' ? [1.8, 3.5] : breed.behavior === 'erratic' ? [0.25, 0.8] : [0.6, 1.8];
+      dog.wanderTimer = pauseRange[0] + Math.random() * (pauseRange[1] - pauseRange[0]);
+    }
   }
 
-  // clamp dog inside yard
-  dog.x = clamp(dog.x, house.yardRect.x + 10, house.yardRect.x + house.yardRect.w - 10);
+  // clamp dog inside yard (defensive, in case a wander target lands outside due to a tiny yard)
+  dog.x = clamp(dog.x, yr.x + 8, yr.x + yr.w - 8);
+  dog.y = clamp(dog.y, yr.y + 8, yr.y + yr.h - 8);
 }
 
 function canSeePlayer(dog, house, p) {
