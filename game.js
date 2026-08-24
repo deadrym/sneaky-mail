@@ -120,7 +120,7 @@ function drawSprite(img, x, y, dispH, anchor) {
    'sentry' (stands still, sweeps gaze), 'sleepy' (naps on a timer, blind
    while asleep), 'erratic' (random direction changes) */
 const BREEDS = {
-  chihuahua:   { name: 'Chihuahua',              size: 0.60, range: 108, nearRadius: 31, coneDeg: 50, speed: 40, fillRate: 0.80, behavior: 'pace' },
+  chihuahua:   { name: 'Chihuahua',              size: 0.60, range: 108, nearRadius: 31, coneDeg: 50, speed: 40, fillRate: 0.80, behavior: 'sleepy' },
   dachshund:   { name: 'Dachshund',              size: 0.80, range: 127, nearRadius: 36, coneDeg: 50, speed: 24, fillRate: 0.88, behavior: 'pace' },
   shihtzu:     { name: 'Shih Tzu',               size: 0.75, range: 117, nearRadius: 34, coneDeg: 50, speed: 18, fillRate: 0.72, behavior: 'sleepy' },
   frenchbulldog:{ name: 'French Bulldog',        size: 0.90, range: 147, nearRadius: 42, coneDeg: 60, speed: 20, fillRate: 0.96, behavior: 'sentry' },
@@ -267,7 +267,7 @@ window.addEventListener('keyup', (e) => { keys[e.key.toLowerCase()] = false; });
 
 /* ---------- Game state ---------- */
 const state = {
-  mode: 'loading', // loading, menu, howto, levelintro, playing, paused, busted, gameover, levelcomplete, win
+  mode: 'loading', // loading, menu, howto, levelintro, playing, caught, paused, busted, gameover, levelcomplete, win
   level: 0,     // 0-indexed
   lives: 3,
   world: null,
@@ -275,6 +275,15 @@ const state = {
   camY: 0,
   lastTime: 0,
   suspicionDisplay: 0,
+  // brief "caught" cutscene: the offending dog lunges at the player and
+  // bites before the busted overlay pops up, instead of an instant cut
+  caughtDog: null,
+  caughtTimer: 0,
+  caughtDuration: 0.9,
+  caughtMsg: '',
+  caughtStartX: 0,
+  caughtStartY: 0,
+  shakeMag: 0,
 };
 
 function screens() {
@@ -309,6 +318,19 @@ function buildWorld(levelIndex) {
     const topY = rowSlotY(rowSlot);
     const house = makeHouse(side, topY, cfg, i, corridorX0(corridor));
     houses.push(house);
+  }
+
+  // a level's house count doesn't always fill every (row, corridor) slot
+  // evenly -- rather than leave the leftover slot as dead grass, dress it
+  // up as a little public park (purely decorative, not part of the route)
+  // so the screen never reads as half-finished
+  const parks = [];
+  for (let rowSlot = 0; rowSlot < rowSlotCount; rowSlot++) {
+    for (let corridor = 0; corridor < CORRIDOR_COUNT; corridor++) {
+      if (rowSlot * CORRIDOR_COUNT + corridor < cfg.houses) continue;
+      const side = rowSlot % 2 === 0 ? 'left' : 'right';
+      parks.push(makePark(side, rowSlotY(rowSlot), corridorX0(corridor)));
+    }
   }
 
   const worldW = corridorX0(CORRIDOR_COUNT - 1) + CORRIDOR_W;
@@ -360,6 +382,7 @@ function buildWorld(levelIndex) {
   return {
     cfg,
     houses,
+    parks,
     worldW,
     worldH,
     crossStreets,
@@ -439,27 +462,10 @@ function makeHouse(side, topY, cfg, index, corridorBaseX) {
 
   const theme = YARD_THEMES[index % YARD_THEMES.length];
 
-  // bushes: small obstacles that also block dog line-of-sight
-  const bushes = [];
-  const bushCount = Math.random() < cfg.bushChance ? (Math.random() < 0.4 ? 2 : 1) : 0;
-  for (let b = 0; b < bushCount; b++) {
-    const bw = 34, bh = 28;
-    const bx = clamp(yardX + 20 + Math.random() * (yardW - 40 - bw), yardX, yardX + yardW - bw);
-    const by = topY + 30 + Math.random() * (HOUSE_H - 60 - bh);
-    bushes.push({ x: bx, y: by, w: bw, h: bh });
-  }
-
-  // decorative dressing (purely visual, no collision): trees, flower beds,
-  // rocks, and a street lamp near the curb -- density/mix varies by theme
-  // so each yard reads as its own distinct little setup. Items are placed
+  // Everything below (bushes, trees, flower beds, rocks, props) is placed
   // via rejection sampling against everything placed so far (plus the path
   // and mailbox), so the yard reads as a handful of deliberate little
   // clusters instead of decor scattered on top of itself everywhere.
-  const trees = [], flowerBeds = [], rocks = [];
-  const treeCount = theme === 'wooded' ? 2 : theme === 'minimal' ? 0 : 1;
-  const flowerCount = theme === 'garden' ? 2 : theme === 'ornamental' || theme === 'wooded' ? 1 : 0;
-  const rockCount = theme === 'minimal' ? 1 : theme === 'wooded' ? 2 : 1;
-
   const placedSpots = [{ x: mailbox.x, y: mailbox.y, r: 32 }, { x: porchX, y: doorCenterY, r: 28 }];
   for (const s of pathStones) placedSpots.push({ x: s.x, y: s.y, r: 15 });
 
@@ -480,6 +486,23 @@ function makeHouse(side, topY, cfg, index, corridorBaseX) {
     placedSpots.push({ x: best.x, y: best.y, r: minR });
     return best;
   }
+
+  // bushes: small obstacles that also block dog line-of-sight
+  const bushes = [];
+  const bushCount = Math.random() < cfg.bushChance ? (Math.random() < 0.4 ? 2 : 1) : 0;
+  for (let b = 0; b < bushCount; b++) {
+    const bw = 34, bh = 28;
+    const p = placeDecor(Math.max(bw, bh) / 2 + 10, 20, 30);
+    bushes.push({ x: p.x - bw / 2, y: p.y - bh / 2, w: bw, h: bh });
+  }
+
+  // decorative dressing (purely visual, no collision): trees, flower beds,
+  // rocks, and a street lamp near the curb -- density/mix varies by theme
+  // so each yard reads as its own distinct little setup
+  const trees = [], flowerBeds = [], rocks = [];
+  const treeCount = theme === 'wooded' ? 2 : theme === 'minimal' ? 0 : 1;
+  const flowerCount = theme === 'garden' ? 2 : theme === 'ornamental' || theme === 'wooded' ? 1 : 0;
+  const rockCount = theme === 'minimal' ? 1 : theme === 'wooded' ? 2 : 1;
 
   for (let t = 0; t < treeCount; t++) {
     const treeR = 16 + Math.random() * 8;
@@ -559,6 +582,64 @@ function makeHouse(side, topY, cfg, index, corridorBaseX) {
   };
 }
 
+// Fills a leftover (row, corridor) slot that has no house with a small
+// public park -- purely decorative dressing (no mailbox, no dogs, no
+// collision) so the neighborhood grid never has a dead, half-finished lot.
+function makePark(side, topY, corridorBaseX) {
+  const houseW = HOUSE_W, yardW = YARD_W;
+  const streetX0 = corridorBaseX + houseW + yardW;
+  const lotX = side === 'left' ? streetX0 - (houseW + yardW) : streetX0 + STREET_W;
+  const rect = { x: lotX, y: topY, w: houseW + yardW, h: HOUSE_H };
+
+  const placedSpots = [];
+  function place(minR, marginX = 20, marginY = 20, tries = 12) {
+    let best = null, bestScore = -Infinity;
+    for (let i = 0; i < tries; i++) {
+      const cand = {
+        x: clamp(rect.x + marginX + Math.random() * (rect.w - marginX * 2), rect.x + 4, rect.x + rect.w - 4),
+        y: clamp(rect.y + marginY + Math.random() * (rect.h - marginY * 2), rect.y + 4, rect.y + rect.h - 4),
+      };
+      let clearance = Infinity;
+      for (const s of placedSpots) clearance = Math.min(clearance, dist(cand.x, cand.y, s.x, s.y) - s.r);
+      if (clearance > bestScore) { bestScore = clearance; best = cand; }
+      if (clearance >= minR) break;
+    }
+    placedSpots.push({ x: best.x, y: best.y, r: minR });
+    return best;
+  }
+
+  const pondSpot = place(22, 30, 30);
+  const trees = [];
+  const treeCount = 4 + Math.floor(Math.random() * 3);
+  for (let t = 0; t < treeCount; t++) {
+    const r = 14 + Math.random() * 10;
+    const p = place(r + 14, 20, 24);
+    const kind = Math.random() < 0.2 ? 'blossom' : (Math.random() < 0.5 ? 'pine' : 'round');
+    trees.push({ x: p.x, y: p.y, r, kind });
+  }
+  const benches = [];
+  const benchCount = 1 + Math.floor(Math.random() * 2);
+  for (let b = 0; b < benchCount; b++) {
+    const p = place(24, 20, 20);
+    benches.push({ kind: 'bench', x: p.x, y: p.y, rot: Math.random() < 0.5 ? 0 : Math.PI / 2 });
+  }
+
+  // a low hedge ring frames the lot as its own little plot, distinct from
+  // a deliverable yard -- decorative only, it doesn't block movement
+  const hedge = [];
+  const step = 30;
+  for (let x = rect.x + 12; x < rect.x + rect.w - 12; x += step) {
+    hedge.push({ x, y: rect.y + 6, w: step - 6, h: 16 });
+    hedge.push({ x, y: rect.y + rect.h - 22, w: step - 6, h: 16 });
+  }
+  for (let y = rect.y + 12; y < rect.y + rect.h - 12; y += step) {
+    hedge.push({ x: rect.x + 2, y, w: 16, h: step - 6 });
+    hedge.push({ x: rect.x + rect.w - 18, y, w: 16, h: step - 6 });
+  }
+
+  return { rect, pond: { kind: 'fountain', x: pondSpot.x, y: pondSpot.y }, trees, benches, hedge };
+}
+
 /* ---------- Level flow ---------- */
 function startGame() {
   state.level = 0;
@@ -579,6 +660,7 @@ function goToLevelIntro() {
     chip.textContent = BREEDS[k].name;
     chipWrap.appendChild(chip);
   });
+  document.getElementById('li-tutorial').style.display = state.level === 0 ? 'block' : 'none';
   state.mode = 'levelintro';
   showOnly('levelintro');
   updateHud();
@@ -810,8 +892,82 @@ function updateDogsAndDetection(dt) {
   document.getElementById('suspicion-bar').style.width = `${Math.round(maxSuspicion * 100)}%`;
 
   if (caughtBy) {
-    loseLife(`A ${caughtBy.breed.name} spotted you and started barking!`);
+    triggerCaught(caughtBy);
   }
+}
+
+// The moment a dog's suspicion maxes out, it lunges at the player and bites
+// -- a brief cutscene (dog rushes in, screen flash + shake) instead of an
+// instant cut to the busted overlay.
+function triggerCaught(dog) {
+  state.mode = 'caught';
+  state.caughtDog = dog;
+  state.caughtTimer = 0;
+  state.caughtStartX = dog.x;
+  state.caughtStartY = dog.y;
+  state.caughtMsg = `A ${dog.breed.name} caught you and took a bite!`;
+  state.shakeMag = 0;
+}
+
+function updateCaughtAnim(dt) {
+  const dog = state.caughtDog;
+  if (!dog) return; // already resolved this cutscene (e.g. loop fired once more before the mode switch took effect)
+  const p = state.world.player;
+  state.caughtTimer += dt;
+  const t = clamp(state.caughtTimer / state.caughtDuration, 0, 1);
+
+  // lunge: the dog rushes from where it was to the player over the first
+  // ~45% of the cutscene, easing out so the "bite" lands with a snap
+  const lungeT = clamp(t / 0.45, 0, 1);
+  const ease = 1 - Math.pow(1 - lungeT, 3);
+  dog.x = state.caughtStartX + (p.x - state.caughtStartX) * ease;
+  dog.y = state.caughtStartY + (p.y - state.caughtStartY) * ease;
+  dog.angle = Math.atan2(p.y - dog.y, p.x - dog.x);
+  dog.suspicion = 1;
+
+  state.shakeMag = (t >= 0.45 && t < 0.75) ? 7 * (1 - (t - 0.45) / 0.3) : 0;
+
+  if (state.caughtTimer >= state.caughtDuration) {
+    const msg = state.caughtMsg;
+    state.caughtDog = null;
+    state.shakeMag = 0;
+    loseLife(msg);
+  }
+}
+
+// Screen-space flash + a "bite" burst over the player at the moment of
+// impact, drawn after the world is restored so it isn't affected by camera
+// shake/pan.
+function drawCaughtOverlay() {
+  const t = clamp(state.caughtTimer / state.caughtDuration, 0, 1);
+  if (t < 0.4 || t > 0.68) return;
+  const bite = clamp((t - 0.4) / 0.1, 0, 1); // 0->1 over the impact window, then holds
+  const fade = t > 0.55 ? 1 - (t - 0.55) / 0.13 : 1;
+
+  ctx.fillStyle = `rgba(200,20,20,${0.4 * bite * fade})`;
+  ctx.fillRect(0, 0, VIEW_W, VIEW_H);
+
+  const p = state.world.player;
+  const sx = p.x - state.camX, sy = p.y - state.camY;
+  ctx.save();
+  ctx.globalAlpha = bite * fade;
+  ctx.strokeStyle = '#fff';
+  ctx.lineWidth = 2.5;
+  for (let i = 0; i < 6; i++) {
+    const a = (i / 6) * Math.PI * 2;
+    ctx.beginPath();
+    ctx.moveTo(sx + Math.cos(a) * 10, sy + Math.sin(a) * 10);
+    ctx.lineTo(sx + Math.cos(a) * 22, sy + Math.sin(a) * 22);
+    ctx.stroke();
+  }
+  ctx.fillStyle = '#fff';
+  ctx.font = 'bold 18px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.strokeStyle = 'rgba(0,0,0,0.6)';
+  ctx.lineWidth = 3;
+  ctx.strokeText('CHOMP!', sx, sy - 30);
+  ctx.fillText('CHOMP!', sx, sy - 30);
+  ctx.restore();
 }
 function breedFillRate(breed, sneaking) {
   return sneaking ? breed.fillRate * 0.5 : breed.fillRate;
@@ -833,12 +989,17 @@ function draw() {
   if (!state.world) return;
   const w = state.world;
 
+  // a brief camera shake sells the impact when a dog bites the player
+  const shakeX = state.shakeMag ? (Math.random() - 0.5) * state.shakeMag : 0;
+  const shakeY = state.shakeMag ? (Math.random() - 0.5) * state.shakeMag : 0;
+
   ctx.save();
-  ctx.translate(-state.camX, -state.camY);
+  ctx.translate(-state.camX + shakeX, -state.camY + shakeY);
 
   drawBackground(w);
   for (const t of w.decor.gapTrees) drawTree(t);
   for (const h of w.houses) drawYard(h);
+  for (const pk of w.parks) drawPark(pk);
   drawRoad(w);
   for (const h of w.houses) drawLamp(h.lamp);
   for (const h of w.houses) drawHouse(h);
@@ -852,6 +1013,8 @@ function draw() {
   for (const h of w.houses) for (const dog of h.dogs) drawDog(dog);
 
   ctx.restore();
+
+  if (state.mode === 'caught') drawCaughtOverlay();
 }
 
 function drawBackground(w) {
@@ -1093,6 +1256,21 @@ function drawYard(h) {
   for (const f of h.flowerBeds) drawFlowerBed(f);
   for (const t of h.trees) drawTree(t);
   for (const p of h.props) drawProp(p);
+}
+
+function drawPark(pk) {
+  const r = pk.rect;
+  ctx.fillStyle = '#5aa855';
+  ctx.fillRect(r.x, r.y, r.w, r.h);
+  ctx.fillStyle = 'rgba(255,255,255,0.05)';
+  const stripeW = 22;
+  for (let sx = r.x - (r.x % stripeW); sx < r.x + r.w; sx += stripeW * 2) {
+    ctx.fillRect(Math.max(sx, r.x), r.y, Math.min(stripeW, r.x + r.w - sx), r.h);
+  }
+  for (const seg of pk.hedge) drawBush(seg);
+  drawProp(pk.pond);
+  for (const t of pk.trees) drawTree(t);
+  for (const b of pk.benches) drawProp(b);
 }
 
 // Sidewalk paver texture: a grid of joint lines rather than sparse ticks,
@@ -1639,7 +1817,7 @@ function drawDog(dog) {
   const breed = dog.breed;
   const s = breed.size;
   const dispH = 40 * s;
-  const alerted = dog.suspicion > 0.5;
+  const alerted = dog.seen || dog.suspicion > 0.3;
   const cat = dog.state === 'asleep' ? 'sleep' : (alerted ? 'bark' : 'move');
   const frames = dogAnimFrames(dog.breedKey, cat);
   const img = frames.length ? frames[dog.animFrame % frames.length] : IMAGES[`dogs.${dog.breedKey}`];
@@ -1703,20 +1881,24 @@ function drawPlayer(p) {
 /* ---------- Main loop ---------- */
 function loop(t) {
   requestAnimationFrame(loop);
-  if (state.mode !== 'playing') return;
   let dt = (t - state.lastTime) / 1000;
   state.lastTime = t;
   dt = Math.min(dt, 0.05);
 
-  updatePlayer(dt);
-  if (state.mode === 'playing') updateDogsAndDetection(dt);
-  if (state.mode === 'playing') updateCamera();
-  draw();
+  if (state.mode === 'playing') {
+    updatePlayer(dt);
+    updateDogsAndDetection(dt);
+    updateCamera();
+    draw();
+  } else if (state.mode === 'caught') {
+    updateCaughtAnim(dt);
+    draw();
+  }
 }
 requestAnimationFrame(loop);
 
-/* also draw while paused/menu so the last frame doesn't look frozen oddly */
-setInterval(() => { if (state.mode !== 'playing') draw(); }, 500);
+/* also draw while paused/menu/busted/etc so the last frame doesn't look frozen oddly */
+setInterval(() => { if (state.mode !== 'playing' && state.mode !== 'caught') draw(); }, 500);
 
 /* ---------- Button wiring ---------- */
 document.getElementById('btn-start').onclick = () => startGame();
