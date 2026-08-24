@@ -3,6 +3,7 @@
 
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
+ctx.imageSmoothingEnabled = false; // keep sprite scaling crisp/nearest-neighbor, matching the pixel-art source art
 const VIEW_W = canvas.width;
 const VIEW_H = canvas.height;
 
@@ -107,6 +108,51 @@ function drawSprite(img, x, y, dispH, anchor) {
   const dy = anchor === 'bottom' ? y - dispH : y - dispH / 2;
   ctx.drawImage(img, x - dispW / 2, dy, dispW, dispH);
   return dispW;
+}
+
+/* ---------- Pixel-art drawing primitives ----------
+   Everything procedural (roads, houses, trees, lamps, garden decor) is
+   built from these instead of smooth canvas shapes/gradients, so the
+   hand-drawn scenery reads in the same chunky, flat-shaded, outlined
+   style as the sprite art rather than looking like a vector-art overlay
+   on top of pixel-art characters. */
+const PX = 3; // one "art pixel" = this many canvas pixels
+
+function pxSnap(v) { return Math.round(v / PX) * PX; }
+
+function pxRect(x, y, w, h, color) {
+  ctx.fillStyle = color;
+  const x0 = pxSnap(x), y0 = pxSnap(y);
+  ctx.fillRect(x0, y0, Math.max(PX, pxSnap(x + w) - x0), Math.max(PX, pxSnap(y + h) - y0));
+}
+
+// Blocky circle: stamped horizontal bars snapped to the pixel grid, the
+// classic way pixel art approximates a circle instead of a smooth arc.
+function pxCircle(cx, cy, r, color) {
+  ctx.fillStyle = color;
+  const rr = Math.max(PX, r);
+  for (let y = -rr; y <= rr; y += PX) {
+    const halfW = Math.sqrt(Math.max(0, rr * rr - (y + PX / 2) * (y + PX / 2)));
+    if (halfW <= 0) continue;
+    const w = Math.max(PX, pxSnap(halfW * 2));
+    ctx.fillRect(pxSnap(cx - w / 2), pxSnap(cy + y), w, PX);
+  }
+}
+
+// A filled blocky circle with a flat-color outline ring around it --
+// drawn as an oversized outline-colored circle behind a smaller fill.
+function pxBlob(cx, cy, r, fillColor, outlineColor) {
+  if (outlineColor) pxCircle(cx, cy, r, outlineColor);
+  pxCircle(cx, cy, Math.max(PX, r - PX), fillColor);
+}
+
+function pxOutlineRect(x, y, w, h, color) {
+  ctx.fillStyle = color;
+  const x0 = pxSnap(x), y0 = pxSnap(y), x1 = pxSnap(x + w), y1 = pxSnap(y + h);
+  ctx.fillRect(x0, y0, x1 - x0, PX);
+  ctx.fillRect(x0, y1 - PX, x1 - x0, PX);
+  ctx.fillRect(x0, y0, PX, y1 - y0);
+  ctx.fillRect(x1 - PX, y0, PX, y1 - y0);
 }
 
 /* ---------- Dog breed catalog ---------- */
@@ -817,123 +863,93 @@ function draw() {
 function drawBackground(w) {
   ctx.fillStyle = '#4f8a4b';
   ctx.fillRect(0, 0, w.worldW, w.worldH);
-  // sky strip above the first row, with soft clouds
+  // sky strip above the first row -- flat band, not a smooth gradient
   const skyH = 130;
-  const sky = ctx.createLinearGradient(0, 0, 0, skyH);
-  sky.addColorStop(0, '#8fd0e8');
-  sky.addColorStop(1, '#4f8a4b');
-  ctx.fillStyle = sky;
-  ctx.fillRect(0, 0, w.worldW, skyH);
-  ctx.fillStyle = 'rgba(255,255,255,0.85)';
+  pxRect(0, 0, w.worldW, skyH, '#8fd0e8');
+  pxRect(0, skyH - PX * 4, w.worldW, PX * 4, '#a9dcec');
   for (const c of w.decor.clouds) {
-    ctx.beginPath();
-    ctx.ellipse(c.x, c.y, 26 * c.s, 12 * c.s, 0, 0, Math.PI * 2);
-    ctx.ellipse(c.x + 20 * c.s, c.y + 4 * c.s, 18 * c.s, 10 * c.s, 0, 0, Math.PI * 2);
-    ctx.ellipse(c.x - 18 * c.s, c.y + 5 * c.s, 16 * c.s, 9 * c.s, 0, 0, Math.PI * 2);
-    ctx.fill();
+    pxBlob(c.x, c.y, 13 * c.s, '#ffffff', 'rgba(255,255,255,0.6)');
+    pxBlob(c.x + 20 * c.s, c.y + 4 * c.s, 10 * c.s, '#ffffff', 'rgba(255,255,255,0.6)');
+    pxBlob(c.x - 18 * c.s, c.y + 5 * c.s, 9 * c.s, '#ffffff', 'rgba(255,255,255,0.6)');
   }
 }
 
 function drawPathStones(stones) {
   for (const s of stones) {
-    ctx.fillStyle = 'rgba(0,0,0,0.14)';
-    ctx.beginPath(); ctx.ellipse(s.x + 1, s.y + 2, s.r, s.r * 0.62, s.rot, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = '#c7c0ae';
-    ctx.beginPath(); ctx.ellipse(s.x, s.y, s.r, s.r * 0.72, s.rot, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = 'rgba(255,255,255,0.28)';
-    ctx.beginPath(); ctx.ellipse(s.x - s.r * 0.25, s.y - s.r * 0.25, s.r * 0.4, s.r * 0.25, s.rot, 0, Math.PI * 2); ctx.fill();
+    pxBlob(s.x + PX, s.y + PX, s.r, 'rgba(0,0,0,0.14)', null);
+    pxBlob(s.x, s.y, s.r, '#c7c0ae', '#8f8877');
+    pxRect(s.x - s.r * 0.3, s.y - s.r * 0.3, s.r * 0.5, PX, 'rgba(255,255,255,0.35)');
   }
 }
 
 function drawFlowerBed(f) {
-  ctx.fillStyle = '#3a2a1c';
-  ctx.beginPath(); ctx.ellipse(f.x, f.y, f.w / 2, f.h / 2, 0, 0, Math.PI * 2); ctx.fill();
+  pxBlob(f.x, f.y, Math.max(f.w, f.h) / 2, '#3a2a1c', '#241a11');
   const colors = ['#e0556a', '#f0c93a', '#e88ac9', '#f4f4f4', '#8a6ad1'];
   const n = 6;
   for (let i = 0; i < n; i++) {
     const a = (i / n) * Math.PI * 2;
-    ctx.fillStyle = colors[i % colors.length];
-    ctx.beginPath();
-    ctx.arc(f.x + Math.cos(a) * f.w * 0.32, f.y + Math.sin(a) * f.h * 0.32, 3, 0, Math.PI * 2);
-    ctx.fill();
+    pxBlob(f.x + Math.cos(a) * f.w * 0.32, f.y + Math.sin(a) * f.h * 0.32, PX * 1.4, colors[i % colors.length], null);
   }
-  ctx.fillStyle = '#4a8a4a';
-  ctx.beginPath(); ctx.arc(f.x, f.y, 3.2, 0, Math.PI * 2); ctx.fill();
+  pxCircle(f.x, f.y, PX * 1.2, '#4a8a4a');
 }
 
 function drawRock(r) {
-  ctx.fillStyle = 'rgba(0,0,0,0.15)';
-  ctx.beginPath(); ctx.ellipse(r.x + 1, r.y + 2, r.r, r.r * 0.6, 0, 0, Math.PI * 2); ctx.fill();
-  ctx.fillStyle = '#8a8f94';
-  ctx.beginPath(); ctx.ellipse(r.x, r.y, r.r, r.r * 0.78, 0, 0, Math.PI * 2); ctx.fill();
-  ctx.fillStyle = 'rgba(255,255,255,0.25)';
-  ctx.beginPath(); ctx.ellipse(r.x - r.r * 0.3, r.y - r.r * 0.3, r.r * 0.35, r.r * 0.22, 0, 0, Math.PI * 2); ctx.fill();
+  pxBlob(r.x + PX, r.y + PX, r.r, 'rgba(0,0,0,0.15)', null);
+  pxBlob(r.x, r.y, r.r, '#8a8f94', '#5c6166');
+  pxRect(r.x - r.r * 0.3, r.y - r.r * 0.35, r.r * 0.45, PX, 'rgba(255,255,255,0.3)');
 }
 
 function drawTree(t) {
-  ctx.fillStyle = 'rgba(0,0,0,0.18)';
-  ctx.beginPath(); ctx.ellipse(t.x + 2, t.y + t.r * 0.55, t.r * 0.9, t.r * 0.4, 0, 0, Math.PI * 2); ctx.fill();
-  ctx.fillStyle = '#6b4a2e';
-  ctx.fillRect(t.x - 3, t.y - 4, 6, t.r * 0.5);
+  pxBlob(t.x + PX, t.y + t.r * 0.55, t.r * 0.7, 'rgba(0,0,0,0.18)', null);
+  pxRect(t.x - 3, t.y - 4, 6, t.r * 0.5, '#6b4a2e');
+  pxRect(t.x - 3, t.y - 4, PX, t.r * 0.5, '#4f3620');
   if (t.kind === 'pine') {
-    ctx.fillStyle = '#2f6b3a';
     for (let i = 0; i < 3; i++) {
       const tw = t.r * (1 - i * 0.22);
       const ty = t.y - i * t.r * 0.5;
+      const shade = i === 0 ? '#245c2e' : (i === 1 ? '#2f6b3a' : '#3d7d44');
+      ctx.fillStyle = shade;
       ctx.beginPath();
-      ctx.moveTo(t.x, ty - t.r * 0.7);
-      ctx.lineTo(t.x - tw, ty + t.r * 0.15);
-      ctx.lineTo(t.x + tw, ty + t.r * 0.15);
+      ctx.moveTo(pxSnap(t.x), pxSnap(ty - t.r * 0.7));
+      ctx.lineTo(pxSnap(t.x - tw), pxSnap(ty + t.r * 0.15));
+      ctx.lineTo(pxSnap(t.x + tw), pxSnap(ty + t.r * 0.15));
       ctx.closePath();
       ctx.fill();
     }
   } else {
-    const grad = ctx.createRadialGradient(t.x - t.r * 0.3, t.y - t.r * 0.6, 2, t.x, t.y - t.r * 0.3, t.r * 1.1);
-    grad.addColorStop(0, '#6fbf5f');
-    grad.addColorStop(1, '#3a7a3a');
-    ctx.fillStyle = grad;
-    ctx.beginPath(); ctx.arc(t.x, t.y - t.r * 0.3, t.r, 0, Math.PI * 2); ctx.fill();
+    pxBlob(t.x, t.y - t.r * 0.3, t.r, '#4a9143', '#2e6b30');
+    pxBlob(t.x - t.r * 0.3, t.y - t.r * 0.55, t.r * 0.4, '#6fbf5f', null);
   }
 }
 
 function drawLamp(l) {
-  ctx.fillStyle = 'rgba(0,0,0,0.15)';
-  ctx.beginPath(); ctx.ellipse(l.x, l.y + 14, 6, 2.4, 0, 0, Math.PI * 2); ctx.fill();
-  ctx.fillStyle = '#3a3a3e';
-  ctx.fillRect(l.x - 2, l.y - 24, 4, 38);
-  ctx.fillStyle = '#2a2a2e';
-  ctx.beginPath(); ctx.arc(l.x, l.y + 14, 4, 0, Math.PI * 2); ctx.fill();
-  const glow = ctx.createRadialGradient(l.x, l.y - 28, 0, l.x, l.y - 28, 14);
-  glow.addColorStop(0, 'rgba(255,230,150,0.5)');
-  glow.addColorStop(1, 'rgba(255,230,150,0)');
-  ctx.fillStyle = glow;
-  ctx.beginPath(); ctx.arc(l.x, l.y - 28, 14, 0, Math.PI * 2); ctx.fill();
-  ctx.fillStyle = '#f0d060';
-  ctx.beginPath(); ctx.ellipse(l.x, l.y - 28, 5, 6, 0, 0, Math.PI * 2); ctx.fill();
+  pxBlob(l.x, l.y + 14, 6, 'rgba(0,0,0,0.15)', null);
+  pxRect(l.x - 2, l.y - 24, 4, 38, '#3a3a3e');
+  pxRect(l.x - 2, l.y - 24, PX, 38, '#54545a');
+  pxCircle(l.x, l.y + 14, 4, '#2a2a2e');
+  // glow as concentric blocky rings instead of a radial gradient
+  pxCircle(l.x, l.y - 28, 14, 'rgba(255,230,150,0.14)');
+  pxCircle(l.x, l.y - 28, 9, 'rgba(255,230,150,0.28)');
+  pxBlob(l.x, l.y - 28, 6, '#f0d060', '#c99a2e');
   ctx.fillStyle = '#2a2a2e';
   ctx.beginPath();
-  ctx.moveTo(l.x - 6, l.y - 34); ctx.lineTo(l.x + 6, l.y - 34); ctx.lineTo(l.x, l.y - 40);
+  ctx.moveTo(pxSnap(l.x - 6), pxSnap(l.y - 34));
+  ctx.lineTo(pxSnap(l.x + 6), pxSnap(l.y - 34));
+  ctx.lineTo(pxSnap(l.x), pxSnap(l.y - 40));
   ctx.closePath(); ctx.fill();
 }
 
 function drawYard(h) {
   const yr = h.yardRect;
-  // mowed-stripe texture
-  ctx.fillStyle = '#5fa85a';
-  ctx.fillRect(yr.x, yr.y, yr.w, yr.h);
-  ctx.fillStyle = 'rgba(255,255,255,0.05)';
-  const stripeW = 22;
+  // mowed-stripe texture, as flat pixel-snapped bands
+  pxRect(yr.x, yr.y, yr.w, yr.h, '#5fa85a');
+  const stripeW = 21;
   for (let sx = yr.x - (yr.x % stripeW); sx < yr.x + yr.w; sx += stripeW * 2) {
-    ctx.fillRect(Math.max(sx, yr.x), yr.y, Math.min(stripeW, yr.x + yr.w - sx), yr.h);
+    pxRect(Math.max(sx, yr.x), yr.y, Math.min(stripeW, yr.x + yr.w - sx), yr.h, 'rgba(255,255,255,0.06)');
   }
-  // grass tufts
+  // grass tufts, as tiny blocky ticks
   for (const t of h.grassTufts) {
-    ctx.strokeStyle = t.shade === 'light' ? 'rgba(255,255,255,0.22)' : 'rgba(0,0,0,0.12)';
-    ctx.lineWidth = 1.4;
-    ctx.beginPath();
-    ctx.moveTo(t.x, t.y);
-    ctx.lineTo(t.x + Math.cos(t.rot) * 5, t.y + Math.sin(t.rot) * 5 - 3);
-    ctx.stroke();
+    pxRect(t.x, t.y - PX, PX, PX * 2, t.shade === 'light' ? 'rgba(255,255,255,0.25)' : 'rgba(0,0,0,0.12)');
   }
   // curvy stepping-stone path from the street to the door/mailbox, then
   // yard dressing -- the mix varies per house's theme for a distinct look
@@ -945,60 +961,32 @@ function drawYard(h) {
 
 function drawVerticalStreet(streetX0, worldH) {
   const x0 = streetX0, x1 = streetX0 + STREET_W;
-  ctx.fillStyle = '#a19c8d';
-  ctx.fillRect(x0, 0, STREET_W, worldH);
-  ctx.fillStyle = '#54585c';
-  ctx.fillRect(x0 + 30, 0, STREET_W - 60, worldH);
-  ctx.strokeStyle = 'rgba(0,0,0,0.18)';
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.moveTo(x0 + 30, 0); ctx.lineTo(x0 + 30, worldH);
-  ctx.moveTo(x1 - 30, 0); ctx.lineTo(x1 - 30, worldH);
-  ctx.stroke();
-  ctx.strokeStyle = 'rgba(0,0,0,0.08)';
-  ctx.lineWidth = 1.5;
-  for (let y = 20; y < worldH; y += 46) {
-    ctx.beginPath();
-    ctx.moveTo(x0 + 4, y); ctx.lineTo(x0 + 27, y);
-    ctx.moveTo(x1 - 27, y); ctx.lineTo(x1 - 4, y);
-    ctx.stroke();
+  pxRect(x0, 0, STREET_W, worldH, '#a19c8d');
+  pxRect(x0 + 30, 0, STREET_W - 60, worldH, '#54585c');
+  pxRect(x0 + 30 - PX, 0, PX, worldH, '#1c1e20');
+  pxRect(x1 - 30, 0, PX, worldH, '#1c1e20');
+  for (let y = 18; y < worldH; y += 45) {
+    pxRect(x0 + 3, y, 24, PX, '#8a8578');
+    pxRect(x1 - 27, y, 24, PX, '#8a8578');
   }
-  ctx.strokeStyle = 'rgba(255,224,110,0.8)';
-  ctx.lineWidth = 3;
-  ctx.setLineDash([16, 18]);
-  ctx.beginPath();
-  ctx.moveTo(x0 + STREET_W / 2, 0); ctx.lineTo(x0 + STREET_W / 2, worldH);
-  ctx.stroke();
-  ctx.setLineDash([]);
+  for (let y = 0; y < worldH; y += 33) {
+    pxRect(x0 + STREET_W / 2 - 7, y, 14, 18, '#ecc94a');
+  }
 }
 
 function drawHorizontalStreet(streetY0, worldW) {
   const y0 = streetY0, y1 = streetY0 + STREET_W;
-  ctx.fillStyle = '#a19c8d';
-  ctx.fillRect(0, y0, worldW, STREET_W);
-  ctx.fillStyle = '#54585c';
-  ctx.fillRect(0, y0 + 30, worldW, STREET_W - 60);
-  ctx.strokeStyle = 'rgba(0,0,0,0.18)';
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.moveTo(0, y0 + 30); ctx.lineTo(worldW, y0 + 30);
-  ctx.moveTo(0, y1 - 30); ctx.lineTo(worldW, y1 - 30);
-  ctx.stroke();
-  ctx.strokeStyle = 'rgba(0,0,0,0.08)';
-  ctx.lineWidth = 1.5;
-  for (let x = 20; x < worldW; x += 46) {
-    ctx.beginPath();
-    ctx.moveTo(x, y0 + 4); ctx.lineTo(x, y0 + 27);
-    ctx.moveTo(x, y1 - 27); ctx.lineTo(x, y1 - 4);
-    ctx.stroke();
+  pxRect(0, y0, worldW, STREET_W, '#a19c8d');
+  pxRect(0, y0 + 30, worldW, STREET_W - 60, '#54585c');
+  pxRect(0, y0 + 30 - PX, worldW, PX, '#1c1e20');
+  pxRect(0, y1 - 30, worldW, PX, '#1c1e20');
+  for (let x = 18; x < worldW; x += 45) {
+    pxRect(x, y0 + 3, PX, 24, '#8a8578');
+    pxRect(x, y1 - 27, PX, 24, '#8a8578');
   }
-  ctx.strokeStyle = 'rgba(255,224,110,0.8)';
-  ctx.lineWidth = 3;
-  ctx.setLineDash([16, 18]);
-  ctx.beginPath();
-  ctx.moveTo(0, y0 + STREET_W / 2); ctx.lineTo(worldW, y0 + STREET_W / 2);
-  ctx.stroke();
-  ctx.setLineDash([]);
+  for (let x = 0; x < worldW; x += 33) {
+    pxRect(x, y0 + STREET_W / 2 - 7, 18, 14, '#ecc94a');
+  }
 }
 
 function drawRoad(w) {
@@ -1009,12 +997,10 @@ function drawRoad(w) {
     drawHorizontalStreet(band.y0, w.worldW);
   }
 
-  // asphalt speckle texture
+  // asphalt speckle texture -- tiny snapped squares, not soft dots
   for (const sp of w.decor.roadSpeckles) {
-    ctx.fillStyle = `rgba(255,255,255,${sp.a})`;
-    ctx.beginPath();
-    ctx.arc(sp.x, sp.y, sp.r, 0, Math.PI * 2);
-    ctx.fill();
+    ctx.fillStyle = `rgba(255,255,255,${sp.a * 2.2})`;
+    ctx.fillRect(pxSnap(sp.x), pxSnap(sp.y), PX, PX);
   }
 
   // a small manhole-style accent marks each real 4-way intersection
@@ -1022,11 +1008,7 @@ function drawRoad(w) {
     const cx = corridorX0(c) + HOUSE_W + YARD_W + STREET_W / 2;
     for (const band of w.crossStreets) {
       const cy = band.y0 + STREET_W / 2;
-      ctx.fillStyle = 'rgba(0,0,0,0.22)';
-      ctx.beginPath(); ctx.ellipse(cx, cy, 10, 7, 0, 0, Math.PI * 2); ctx.fill();
-      ctx.strokeStyle = 'rgba(255,255,255,0.15)';
-      ctx.lineWidth = 1.5;
-      ctx.beginPath(); ctx.ellipse(cx, cy, 10, 7, 0, 0, Math.PI * 2); ctx.stroke();
+      pxBlob(cx, cy, 10, '#6a6660', '#1c1e20');
     }
   }
 }
@@ -1041,111 +1023,83 @@ function shadeColor(hex, amt) {
 }
 
 function drawRoofGable(roofX0, roofX1, r, flip, pal) {
-  const ridgeX = (roofX0 + roofX1) / 2;
+  const ridgeX = pxSnap((roofX0 + roofX1) / 2);
   // two-tone slopes (consistent light-from-the-left) are what actually
   // reads as a pitched roof from directly above, rather than a flat fill
-  ctx.fillStyle = shadeColor(pal.roof, 26);
-  ctx.fillRect(roofX0, r.y, ridgeX - roofX0, r.h);
-  ctx.fillStyle = shadeColor(pal.roof, -28);
-  ctx.fillRect(ridgeX, r.y, roofX1 - ridgeX, r.h);
-  ctx.strokeStyle = 'rgba(0,0,0,0.25)';
-  ctx.lineWidth = 1;
-  for (let ly = r.y + 6; ly < r.y + r.h; ly += 9) {
-    ctx.beginPath();
-    ctx.moveTo(ridgeX, ly);
-    ctx.lineTo(flip ? roofX1 - 3 : roofX0 + 3, ly + 2);
-    ctx.moveTo(ridgeX, ly);
-    ctx.lineTo(flip ? roofX0 + 3 : roofX1 - 3, ly + 2);
-    ctx.stroke();
+  pxRect(roofX0, r.y, ridgeX - roofX0, r.h, shadeColor(pal.roof, 26));
+  pxRect(ridgeX, r.y, roofX1 - ridgeX, r.h, shadeColor(pal.roof, -28));
+  // blocky shingle course marks, stamped instead of stroked
+  const dark = shadeColor(pal.roof, -45);
+  for (let ly = r.y + 6; ly < r.y + r.h - 3; ly += 9) {
+    for (let lx = roofX0 + 3; lx < roofX1 - 3; lx += 8) {
+      pxRect(lx, ly, PX, PX, dark);
+    }
   }
-  ctx.strokeStyle = 'rgba(255,255,255,0.45)';
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.moveTo(ridgeX, r.y + 2);
-  ctx.lineTo(ridgeX, r.y + r.h - 2);
-  ctx.stroke();
+  pxRect(ridgeX - PX, r.y, PX * 2, r.h, shadeColor(pal.roof, 55));
 }
 
 function drawRoofFlat(roofX0, roofX1, r, pal) {
-  ctx.fillStyle = pal.roof;
-  ctx.fillRect(roofX0, r.y, roofX1 - roofX0, r.h);
-  // gravel/tar texture speckle
-  ctx.fillStyle = 'rgba(255,255,255,0.08)';
-  for (let ly = r.y + 5; ly < r.y + r.h; ly += 7) {
-    for (let lx = roofX0 + 3; lx < roofX1 - 2; lx += 6) {
-      if ((lx + ly) % 3 === 0) ctx.fillRect(lx, ly, 2, 2);
+  pxRect(roofX0, r.y, roofX1 - roofX0, r.h, pal.roof);
+  // gravel/tar texture speckle, snapped to the pixel grid
+  const light = shadeColor(pal.roof, 30);
+  for (let ly = r.y + 5; ly < r.y + r.h; ly += 8) {
+    for (let lx = roofX0 + 4; lx < roofX1 - 3; lx += 9) {
+      if ((Math.round(lx / PX) + Math.round(ly / PX)) % 3 === 0) pxRect(lx, ly, PX, PX, light);
     }
   }
-  // parapet edge
-  ctx.strokeStyle = 'rgba(255,255,255,0.35)';
-  ctx.lineWidth = 2;
-  ctx.strokeRect(roofX0 + 1, r.y + 1, roofX1 - roofX0 - 2, r.h - 2);
+  pxOutlineRect(roofX0, r.y, roofX1 - roofX0, r.h, shadeColor(pal.roof, 45));
 }
 
 function drawRoofTile(roofX0, roofX1, r, flip, pal) {
-  const ridgeX = (roofX0 + roofX1) / 2;
-  ctx.fillStyle = shadeColor(pal.roof, 22);
-  ctx.fillRect(roofX0, r.y, ridgeX - roofX0, r.h);
-  ctx.fillStyle = shadeColor(pal.roof, -24);
-  ctx.fillRect(ridgeX, r.y, roofX1 - ridgeX, r.h);
-  ctx.strokeStyle = 'rgba(0,0,0,0.2)';
-  ctx.lineWidth = 1;
-  for (let ly = r.y + 6; ly < r.y + r.h; ly += 9) {
-    ctx.beginPath();
-    ctx.moveTo(ridgeX, ly); ctx.lineTo(flip ? roofX1 - 3 : roofX0 + 3, ly + 2);
-    ctx.moveTo(ridgeX, ly); ctx.lineTo(flip ? roofX0 + 3 : roofX1 - 3, ly + 2);
-    ctx.stroke();
-  }
-  // terracotta scalloped tile rows
-  ctx.fillStyle = 'rgba(255,255,255,0.16)';
+  const ridgeX = pxSnap((roofX0 + roofX1) / 2);
+  pxRect(roofX0, r.y, ridgeX - roofX0, r.h, shadeColor(pal.roof, 22));
+  pxRect(ridgeX, r.y, roofX1 - ridgeX, r.h, shadeColor(pal.roof, -24));
+  // terracotta scalloped tile rows, as blocky stamped bumps
+  const light = shadeColor(pal.roof, 38);
   for (let ly = r.y + 5; ly < r.y + r.h - 4; ly += 8) {
     for (let lx = roofX0 + 3; lx < roofX1 - 3; lx += 7) {
-      ctx.beginPath();
-      ctx.arc(lx, ly, 2.6, 0, Math.PI, true);
-      ctx.fill();
+      pxRect(lx, ly, PX * 2, PX, light);
     }
   }
-  ctx.strokeStyle = 'rgba(255,255,255,0.45)';
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.moveTo(ridgeX, r.y + 2); ctx.lineTo(ridgeX, r.y + r.h - 2);
-  ctx.stroke();
+  pxRect(ridgeX - PX, r.y, PX * 2, r.h, shadeColor(pal.roof, 55));
 }
 
 function drawRoofAframe(roofX0, roofX1, r, flip, pal) {
   const apexX = flip ? roofX1 - 4 : roofX0 + 4;
   const baseX = flip ? roofX0 : roofX1;
-  // shade from the tucked-in apex (dark) out to the exposed base (light)
-  // so the single slope still reads as sloped, not flat
-  const slopeGrad = ctx.createLinearGradient(apexX, r.y + r.h / 2, baseX, r.y + r.h / 2);
-  slopeGrad.addColorStop(0, shadeColor(pal.roof, -30));
-  slopeGrad.addColorStop(1, shadeColor(pal.roof, 20));
-  ctx.fillStyle = slopeGrad;
-  ctx.beginPath();
-  ctx.moveTo(apexX, r.y + r.h / 2);
-  ctx.lineTo(baseX, r.y);
-  ctx.lineTo(baseX, r.y + r.h);
-  ctx.closePath();
-  ctx.fill();
-  ctx.strokeStyle = 'rgba(0,0,0,0.22)';
-  ctx.lineWidth = 1;
-  for (let t = 0.15; t < 1; t += 0.14) {
+  // stepped bands from the tucked-in apex (dark) to the exposed base
+  // (light) -- flat tone steps instead of a smooth gradient
+  const bands = 4;
+  for (let i = 0; i < bands; i++) {
+    const t0 = i / bands, t1 = (i + 1) / bands;
+    const bx0 = apexX + (baseX - apexX) * t0, bx1 = apexX + (baseX - apexX) * t1;
+    const bh0 = (r.h / 2) * t0, bh1 = (r.h / 2) * t1;
+    const shade = -30 + i * ((30 - -30) / (bands - 1));
+    ctx.fillStyle = shadeColor(pal.roof, shade);
     ctx.beginPath();
-    ctx.moveTo(apexX, r.y + r.h / 2);
-    ctx.lineTo(baseX, r.y + r.h * t);
-    ctx.stroke();
+    if (!flip) {
+      ctx.moveTo(bx0, r.y + r.h / 2 - bh0); ctx.lineTo(bx1, r.y + r.h / 2 - bh1);
+      ctx.lineTo(bx1, r.y + r.h / 2 + bh1); ctx.lineTo(bx0, r.y + r.h / 2 + bh0);
+    } else {
+      ctx.moveTo(bx0, r.y + r.h / 2 - bh0); ctx.lineTo(bx1, r.y + r.h / 2 - bh1);
+      ctx.lineTo(bx1, r.y + r.h / 2 + bh1); ctx.lineTo(bx0, r.y + r.h / 2 + bh0);
+    }
+    ctx.closePath();
+    ctx.fill();
   }
-  ctx.strokeStyle = 'rgba(255,255,255,0.3)';
-  ctx.lineWidth = 1.5;
+  // blocky rafter marks
+  const dark = shadeColor(pal.roof, -50);
+  for (let t = 0.15; t < 1; t += 0.14) {
+    const bx = apexX + (baseX - apexX) * t;
+    pxRect(bx, r.y + r.h * t - PX / 2, PX, PX, dark);
+  }
+  ctx.fillStyle = shadeColor(pal.roof, 55);
   ctx.beginPath();
-  ctx.moveTo(apexX, r.y + r.h / 2); ctx.lineTo(baseX, r.y);
-  ctx.moveTo(apexX, r.y + r.h / 2); ctx.lineTo(baseX, r.y + r.h);
-  ctx.stroke();
-  // small peak window
-  ctx.fillStyle = 'rgba(200,225,235,0.8)';
-  ctx.beginPath();
-  ctx.arc(apexX + (flip ? -10 : 10), r.y + r.h / 2, 3.5, 0, Math.PI * 2);
-  ctx.fill();
+  ctx.moveTo(apexX, r.y + r.h / 2 - 3); ctx.lineTo(apexX, r.y + r.h / 2 + 3);
+  ctx.lineTo(baseX, r.y + 3); ctx.lineTo(baseX, r.y - 3);
+  ctx.closePath(); ctx.fill();
+  // small peak window, blocky
+  pxRect(apexX + (flip ? -14 : 8), r.y + r.h / 2 - PX * 1.5, PX * 3, PX * 3, '#cfe8f0');
 }
 
 // Houses are drawn in a 3/4 top-down style (a la classic Zelda/Stardew towns):
@@ -1179,53 +1133,29 @@ function drawHouse(h) {
   else drawRoofGable(roofX0, roofX1, r, flip, pal);
 
   // --- facade zone (tall front wall facing the street) ---
-  ctx.fillStyle = pal.siding;
-  ctx.fillRect(facadeX0, r.y, facadeW, r.h);
-  ctx.strokeStyle = 'rgba(0,0,0,0.06)';
-  ctx.lineWidth = 1;
+  pxRect(facadeX0, r.y, facadeW, r.h, pal.siding);
+  const sidingDark = shadeColor(pal.siding, -14);
   for (let ly = r.y + 8; ly < r.y + r.h - 6; ly += 9) {
-    ctx.beginPath();
-    ctx.moveTo(facadeX0 + 2, ly);
-    ctx.lineTo(facadeX1 - 2, ly);
-    ctx.stroke();
+    pxRect(facadeX0 + 2, ly, facadeW - 4, PX, sidingDark);
   }
-  // eave overhang shadow where the roof meets the facade
+  // eave overhang shadow where the roof meets the facade -- stepped bands
   const eaveX = flip ? facadeX1 : facadeX0;
-  const shadowGrad = ctx.createLinearGradient(
-    flip ? eaveX : eaveX, 0, flip ? eaveX - 10 : eaveX + 10, 0
-  );
-  shadowGrad.addColorStop(0, 'rgba(0,0,0,0.32)');
-  shadowGrad.addColorStop(1, 'rgba(0,0,0,0)');
-  ctx.fillStyle = shadowGrad;
-  ctx.fillRect(flip ? eaveX - 10 : eaveX, r.y, 10, r.h);
-  ctx.strokeStyle = pal.trim;
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.moveTo(eaveX, r.y); ctx.lineTo(eaveX, r.y + r.h);
-  ctx.stroke();
+  const shadowSteps = [[0.34, 0], [0.2, 3], [0.1, 6]];
+  for (const [alpha, off] of shadowSteps) {
+    pxRect(flip ? eaveX - off - PX : eaveX + off, r.y, PX, r.h, `rgba(0,0,0,${alpha})`);
+  }
+  pxRect(eaveX - (flip ? PX : 0), r.y, PX, r.h, pal.trim);
   // gable-end trim strip along the top edge of the facade (hints a side wall)
-  ctx.fillStyle = 'rgba(0,0,0,0.12)';
-  ctx.fillRect(facadeX0, r.y, facadeW, 5);
+  pxRect(facadeX0, r.y, facadeW, 5, 'rgba(0,0,0,0.12)');
 
   // chimney, mounted on the roof zone
   if (h.hasChimney) {
     const chX = flip ? roofX1 - 20 : roofX0 + 8;
-    ctx.fillStyle = '#8a5a4a';
-    ctx.fillRect(chX, r.y + 6, 14, 18);
-    ctx.fillStyle = '#6b4238';
-    ctx.fillRect(chX - 2, r.y + 4, 18, 5);
-    ctx.fillStyle = 'rgba(255,255,255,0.4)';
-    ctx.beginPath();
-    ctx.ellipse(chX + 6, r.y - 4, 4, 3.4, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = 'rgba(255,255,255,0.28)';
-    ctx.beginPath();
-    ctx.ellipse(chX + 10, r.y - 11, 5.5, 4.4, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = 'rgba(255,255,255,0.18)';
-    ctx.beginPath();
-    ctx.ellipse(chX + 15, r.y - 19, 7, 5.5, 0, 0, Math.PI * 2);
-    ctx.fill();
+    pxRect(chX, r.y + 6, 14, 18, '#8a5a4a');
+    pxRect(chX - 2, r.y + 4, 18, 5, '#6b4238');
+    pxBlob(chX + 6, r.y - 4, 4, 'rgba(255,255,255,0.45)', null);
+    pxBlob(chX + 10, r.y - 11, 5.5, 'rgba(255,255,255,0.32)', null);
+    pxBlob(chX + 15, r.y - 19, 7, 'rgba(255,255,255,0.2)', null);
   }
 
   // windows, within the facade zone
@@ -1238,61 +1168,38 @@ function drawHouse(h) {
   // door with frame, panels, awning, knob
   const doorW = 20, doorH = 42;
   const dx = h.doorX, dy = r.y + r.h / 2 - doorH / 2;
-  ctx.fillStyle = pal.trim;
-  ctx.fillRect(dx - 3, dy - 3, doorW + 6, doorH + 3);
-  ctx.fillStyle = pal.door;
-  ctx.fillRect(dx, dy, doorW, doorH);
-  ctx.strokeStyle = 'rgba(255,255,255,0.18)';
-  ctx.lineWidth = 1.2;
-  ctx.strokeRect(dx + 3, dy + 4, doorW - 6, doorH * 0.42);
-  ctx.strokeRect(dx + 3, dy + doorH * 0.52, doorW - 6, doorH * 0.42);
-  ctx.fillStyle = '#e8c95a';
-  ctx.beginPath();
-  ctx.arc(flip ? dx + 4 : dx + doorW - 4, dy + doorH / 2, 1.6, 0, Math.PI * 2);
-  ctx.fill();
-  // awning
-  ctx.fillStyle = pal.roof;
-  ctx.beginPath();
-  ctx.ellipse(dx + doorW / 2, dy - 3, doorW / 2 + 5, 6, 0, Math.PI, 0);
-  ctx.fill();
+  pxRect(dx - 3, dy - 3, doorW + 6, doorH + 3, pal.trim);
+  pxRect(dx, dy, doorW, doorH, pal.door);
+  pxOutlineRect(dx + 3, dy + 4, doorW - 6, doorH * 0.42, 'rgba(255,255,255,0.2)');
+  pxOutlineRect(dx + 3, dy + doorH * 0.52, doorW - 6, doorH * 0.42, 'rgba(255,255,255,0.2)');
+  pxRect(flip ? dx + 3 : dx + doorW - 5, dy + doorH / 2 - PX / 2, PX, PX, '#e8c95a');
+  // awning -- flat blocky canopy instead of a smooth ellipse arc
+  pxRect(dx - 5, dy - 6, doorW + 10, PX, pal.roof);
+  pxRect(dx - 3, dy - 3, doorW + 6, PX, shadeColor(pal.roof, -18));
   // porch step
-  ctx.fillStyle = '#bdb8ab';
-  ctx.fillRect(dx - 4, dy + doorH, doorW + 8, 6);
+  pxRect(dx - 4, dy + doorH, doorW + 8, 6, '#bdb8ab');
+  pxRect(dx - 4, dy + doorH, doorW + 8, PX, '#9a9587');
 }
 
 function drawWindow(wx, wy, ww, wh, trim, hasFlowerBox) {
-  ctx.fillStyle = trim;
-  ctx.fillRect(wx - 3, wy - 3, ww + 6, wh + 6);
-  const glass = ctx.createLinearGradient(wx, wy, wx, wy + wh);
-  glass.addColorStop(0, '#e3f4fb');
-  glass.addColorStop(1, '#9cc9dc');
-  ctx.fillStyle = glass;
-  ctx.fillRect(wx, wy, ww, wh);
-  ctx.strokeStyle = '#ffffff';
-  ctx.lineWidth = 1.6;
-  ctx.beginPath();
-  ctx.moveTo(wx + ww / 2, wy); ctx.lineTo(wx + ww / 2, wy + wh);
-  ctx.moveTo(wx, wy + wh / 2); ctx.lineTo(wx + ww, wy + wh / 2);
-  ctx.stroke();
+  pxRect(wx - 3, wy - 3, ww + 6, wh + 6, trim);
+  // flat two-tone "glass" split instead of a smooth gradient
+  pxRect(wx, wy, ww, wh * 0.5, '#e3f4fb');
+  pxRect(wx, wy + wh * 0.5, ww, wh * 0.5, '#9cc9dc');
+  pxRect(wx + ww / 2 - PX / 2, wy, PX, wh, '#ffffff');
+  pxRect(wx, wy + wh / 2 - PX / 2, ww, PX, '#ffffff');
   if (hasFlowerBox) {
-    ctx.fillStyle = '#7a5233';
-    ctx.fillRect(wx - 2, wy + wh + 2, ww + 4, 5);
+    pxRect(wx - 2, wy + wh + 2, ww + 4, 5, '#7a5233');
     const dots = ['#e05a5a', '#f0c93a', '#e05a5a'];
     dots.forEach((c, i) => {
-      ctx.fillStyle = c;
-      ctx.beginPath();
-      ctx.arc(wx + 4 + i * (ww - 8) / 2, wy + wh + 1, 2.4, 0, Math.PI * 2);
-      ctx.fill();
+      pxBlob(wx + 4 + i * (ww - 8) / 2, wy + wh + 1, PX * 1.2, c, null);
     });
   }
 }
 
 function drawBush(b) {
   const cx = b.x + b.w / 2, cy = b.y + b.h / 2;
-  ctx.fillStyle = 'rgba(0,0,0,0.15)';
-  ctx.beginPath();
-  ctx.ellipse(cx + 2, cy + b.h / 2 - 2, b.w / 2, b.h / 4, 0, 0, Math.PI * 2);
-  ctx.fill();
+  pxBlob(cx + PX, cy + b.h / 2 - PX, b.w / 2, 'rgba(0,0,0,0.15)', null);
   const puffs = [
     { dx: 0, dy: 0, r: b.w / 2.1, c: '#2f6b34' },
     { dx: -b.w / 3, dy: b.h / 5, r: b.w / 2.8, c: '#356f38' },
@@ -1300,10 +1207,7 @@ function drawBush(b) {
     { dx: -b.w / 8, dy: -b.h / 5, r: b.w / 3.2, c: '#4a8a4a' },
   ];
   for (const p of puffs) {
-    ctx.fillStyle = p.c;
-    ctx.beginPath();
-    ctx.ellipse(cx + p.dx, cy + p.dy, p.r, p.r * 0.82, 0, 0, Math.PI * 2);
-    ctx.fill();
+    pxBlob(cx + p.dx, cy + p.dy, p.r, p.c, '#1c3d1f');
   }
 }
 
