@@ -163,19 +163,23 @@ const HOUSE_GAP = 26;
 const HOUSE_W = 150;
 const YARD_W = 190;
 const STREET_W = 180;      // vertical corridor street width, and horizontal cross-street width
-const CORRIDOR_COUNT = 2;  // side-by-side vertical street corridors -- the "columns" of the block grid
-const CORRIDOR_GAP = 60;   // back-lot buffer between one corridor's houses and the next corridor's
+// A single vertical corridor keeps the whole map within one screen-width --
+// no horizontal camera panning -- with houses alternating sides down it and
+// extra rows simply extending the map downward. CORRIDOR_COUNT > 1 would
+// place additional corridors side by side instead (off-screen, requiring
+// horizontal panning), which is what this used to do.
+const CORRIDOR_COUNT = 1;
+const CORRIDOR_GAP = 60;   // back-lot buffer between one corridor's houses and the next corridor's (unused while CORRIDOR_COUNT is 1)
 const CORRIDOR_W = HOUSE_W + YARD_W + STREET_W + YARD_W + HOUSE_W;
 const ROW_H = HOUSE_H + HOUSE_GAP;
 const ROWS_PER_BLOCK = 2;  // house-rows between horizontal cross streets
 const MARGIN_TOP = 140;
 const MARGIN_BOTTOM = 160;
 
-// A real block grid: houses alternate between CORRIDOR_COUNT vertical street
-// corridors (so the camera has to pan horizontally too), and every
-// ROWS_PER_BLOCK rows a horizontal cross street cuts across *all* corridors
-// at the same world Y, forming actual 4-way intersections instead of one
-// long straight or winding line.
+// A real block grid: houses alternate sides of the corridor row by row, and
+// every ROWS_PER_BLOCK rows a horizontal cross street cuts across it at the
+// same world Y, forming actual 4-way intersections instead of one long
+// straight or winding line.
 function corridorX0(corridorIndex) {
   return corridorIndex * (CORRIDOR_W + CORRIDOR_GAP);
 }
