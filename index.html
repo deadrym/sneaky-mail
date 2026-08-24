@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Sneaky Mail</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div id="game-wrap">
+    <canvas id="game" width="900" height="600"></canvas>
+
+    <div id="hud">
+      <div class="hud-item" id="hud-level">Level 1</div>
+      <div class="hud-item" id="hud-mail">Mail 0/0</div>
+      <div class="hud-item" id="hud-lives">❤❤❤</div>
+    </div>
+
+    <div id="suspicion-bar-wrap">
+      <div id="suspicion-bar"></div>
+    </div>
+
+    <!-- Start / Menu -->
+    <div class="overlay" id="screen-menu">
+      <h1>📬 Sneaky Mail</h1>
+      <p class="tagline">Deliver the mail. Don't wake the dogs.</p>
+      <button id="btn-start">Start Delivering</button>
+      <button id="btn-howto">How to Play</button>
+      <p class="footer-note">10 streets. 10 breeds. Zero barks (hopefully).</p>
+    </div>
+
+    <!-- How to play -->
+    <div class="overlay hidden" id="screen-howto">
+      <h2>How to Play</h2>
+      <ul class="howto-list">
+        <li><b>Move:</b> Arrow Keys or WASD</li>
+        <li><b>Sneak (slower, quieter):</b> Hold Shift</li>
+        <li><b>Deliver mail:</b> Walk up to a mailbox — it's automatic</li>
+        <li><b>Avoid:</b> Dog vision cones. Getting spotted fills their suspicion meter — if it maxes out, you're busted!</li>
+        <li><b>Hide:</b> Bushes block a dog's line of sight</li>
+        <li><b>Goal:</b> Deliver to every mailbox on the street without getting caught</li>
+        <li><b>Pause:</b> P &nbsp; <b>Restart level:</b> R</li>
+      </ul>
+      <button id="btn-howto-back">Back</button>
+    </div>
+
+    <!-- Level intro -->
+    <div class="overlay hidden" id="screen-levelintro">
+      <h2 id="li-title">Level 1</h2>
+      <p id="li-desc"></p>
+      <div id="li-breeds"></div>
+      <button id="btn-li-go">Ready</button>
+    </div>
+
+    <!-- Busted -->
+    <div class="overlay hidden" id="screen-busted">
+      <h2>🐶 BUSTED!</h2>
+      <p id="busted-msg">A dog spotted you!</p>
+      <button id="btn-busted-retry">Try Again</button>
+    </div>
+
+    <!-- Game Over -->
+    <div class="overlay hidden" id="screen-gameover">
+      <h2>Game Over</h2>
+      <p>You're out of lives. The neighborhood dogs win this round.</p>
+      <button id="btn-gameover-restart">Restart from Level 1</button>
+    </div>
+
+    <!-- Level Complete -->
+    <div class="overlay hidden" id="screen-levelcomplete">
+      <h2>✅ Street Cleared!</h2>
+      <p id="lc-msg"></p>
+      <button id="btn-lc-next">Next Street</button>
+    </div>
+
+    <!-- Win -->
+    <div class="overlay hidden" id="screen-win">
+      <h2>🏆 Route Complete!</h2>
+      <p>You delivered every letter on every street without a single bark. Sneaky Mail Legend!</p>
+      <button id="btn-win-restart">Play Again</button>
+    </div>
+
+    <!-- Pause -->
+    <div class="overlay hidden" id="screen-pause">
+      <h2>Paused</h2>
+      <button id="btn-resume">Resume</button>
+      <button id="btn-pause-restart">Restart Level</button>
+      <button id="btn-pause-menu">Main Menu</button>
+    </div>
+  </div>
+
+  <script src="game.js"></script>
+</body>
+</html>
