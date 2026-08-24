@@ -196,6 +196,26 @@ function crossStreetBands(rowSlotCount) {
 /* ---------- Utility ---------- */
 function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
 function dist(ax, ay, bx, by) { return Math.hypot(ax - bx, ay - by); }
+// Places stones at even spacing along a polyline (a sequence of straight
+// legs), used for the maze-like stepping-stone yard paths. `nextDist` is
+// the absolute distance-along-the-whole-path where the next stone belongs,
+// so spacing carries correctly across the sharp turns between legs.
+function stonesAlongPath(points, spacing) {
+  const stones = [];
+  let nextDist = 0;
+  let walked = 0;
+  for (let i = 0; i < points.length - 1; i++) {
+    const a = points[i], b = points[i + 1];
+    const segLen = dist(a.x, a.y, b.x, b.y);
+    while (nextDist <= walked + segLen) {
+      const t = segLen > 0 ? (nextDist - walked) / segLen : 0;
+      stones.push({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t, r: 7 + Math.random() * 3, rot: Math.random() * Math.PI });
+      nextDist += spacing;
+    }
+    walked += segLen;
+  }
+  return stones;
+}
 function normAngle(a) {
   while (a > Math.PI) a -= Math.PI * 2;
   while (a < -Math.PI) a += Math.PI * 2;
@@ -283,7 +303,7 @@ function buildWorld(levelIndex) {
   for (let i = 0; i < cfg.houses; i++) {
     const corridor = i % CORRIDOR_COUNT;
     const rowSlot = Math.floor(i / CORRIDOR_COUNT);
-    const side = i % 2 === 0 ? 'left' : 'right';
+    const side = rowSlot % 2 === 0 ? 'left' : 'right';
     const topY = rowSlotY(rowSlot);
     const house = makeHouse(side, topY, cfg, i, corridorX0(corridor));
     houses.push(house);
@@ -399,22 +419,21 @@ function makeHouse(side, topY, cfg, index, corridorBaseX) {
   const porchX = side === 'left' ? yardX + 58 : yardX + yardW - 58;
   const facingAngle = side === 'left' ? 0 : Math.PI;
 
-  // curvy stepping-stone path from the street edge to the door/mailbox
-  const pathEntry = { x: side === 'left' ? yardX + yardW - 10 : yardX + 10, y: topY + HOUSE_H * (0.25 + Math.random() * 0.5) };
+  // maze-like stepping-stone path from the street edge to the door/mailbox:
+  // a zigzag of straight legs with sharp right-angle-ish turns rather than
+  // a smooth curve, so the route reads as something to actually navigate
+  const pathEntry = { x: side === 'left' ? yardX + yardW - 10 : yardX + 10, y: topY + HOUSE_H * (0.2 + Math.random() * 0.6) };
   const pathEnd = { x: mailbox.x + (side === 'left' ? -10 : 10), y: mailbox.y };
-  const pathControl = { x: (pathEntry.x + pathEnd.x) / 2 + (Math.random() - 0.5) * 60, y: (pathEntry.y + pathEnd.y) / 2 + (Math.random() - 0.5) * 40 };
-  const pathStones = [];
-  const stoneCount = 9;
-  for (let t = 0; t <= stoneCount; t++) {
-    const tt = t / stoneCount;
-    const mt = 1 - tt;
-    pathStones.push({
-      x: mt * mt * pathEntry.x + 2 * mt * tt * pathControl.x + tt * tt * pathEnd.x,
-      y: mt * mt * pathEntry.y + 2 * mt * tt * pathControl.y + tt * tt * pathEnd.y,
-      r: 7 + Math.random() * 3,
-      rot: Math.random() * Math.PI,
-    });
-  }
+  const turnX = pathEntry.x + (pathEnd.x - pathEntry.x) * (0.3 + Math.random() * 0.2);
+  const turnY = pathEntry.y + (pathEnd.y - pathEntry.y) * (0.55 + Math.random() * 0.25);
+  const pathWaypoints = [
+    pathEntry,
+    { x: turnX, y: pathEntry.y },
+    { x: turnX, y: turnY },
+    { x: pathEnd.x, y: turnY },
+    pathEnd,
+  ];
+  const pathStones = stonesAlongPath(pathWaypoints, 15);
 
   const theme = YARD_THEMES[index % YARD_THEMES.length];
 
@@ -452,7 +471,8 @@ function makeHouse(side, topY, cfg, index, corridorBaseX) {
     const p = placeInYard(12, 12);
     rocks.push({ x: p.x, y: p.y, r: 4 + Math.random() * 4 });
   }
-  const lamp = { x: side === 'left' ? yardX + yardW - 14 : yardX + 14, y: topY + HOUSE_H - 20 };
+  // lamp post stands on the sidewalk (the street's outer margin), not in the yard
+  const lamp = { x: side === 'left' ? streetX0 + 12 : streetX0 + STREET_W - 12, y: topY + HOUSE_H - 20 };
 
   // grass tufts: small static texture marks scattered in the yard
   const grassTufts = [];
@@ -780,9 +800,10 @@ function draw() {
   for (const t of w.decor.gapTrees) drawTree(t);
   for (const h of w.houses) drawYard(h);
   drawRoad(w);
+  for (const h of w.houses) drawLamp(h.lamp);
   for (const h of w.houses) drawHouse(h);
   for (const h of w.houses) for (const b of h.bushes) drawBush(b);
-  for (const h of w.houses) drawMailbox(h.mailbox);
+  for (const h of w.houses) drawMailbox(h.mailbox, h.side);
 
   // vision cones on top of scenery, under the characters
   for (const h of w.houses) for (const dog of h.dogs) drawVisionCone(dog);
@@ -920,7 +941,6 @@ function drawYard(h) {
   for (const r of h.rocks) drawRock(r);
   for (const f of h.flowerBeds) drawFlowerBed(f);
   for (const t of h.trees) drawTree(t);
-  drawLamp(h.lamp);
 }
 
 function drawVerticalStreet(streetX0, worldH) {
@@ -1011,12 +1031,25 @@ function drawRoad(w) {
   }
 }
 
+// Lightens (positive amt) or darkens (negative amt) a "#rrggbb" color.
+function shadeColor(hex, amt) {
+  const num = parseInt(hex.slice(1), 16);
+  const r = Math.max(0, Math.min(255, (num >> 16) + amt));
+  const g = Math.max(0, Math.min(255, ((num >> 8) & 0xff) + amt));
+  const b = Math.max(0, Math.min(255, (num & 0xff) + amt));
+  return `rgb(${r},${g},${b})`;
+}
+
 function drawRoofGable(roofX0, roofX1, r, flip, pal) {
-  ctx.fillStyle = pal.roof;
-  ctx.fillRect(roofX0, r.y, roofX1 - roofX0, r.h);
+  const ridgeX = (roofX0 + roofX1) / 2;
+  // two-tone slopes (consistent light-from-the-left) are what actually
+  // reads as a pitched roof from directly above, rather than a flat fill
+  ctx.fillStyle = shadeColor(pal.roof, 26);
+  ctx.fillRect(roofX0, r.y, ridgeX - roofX0, r.h);
+  ctx.fillStyle = shadeColor(pal.roof, -28);
+  ctx.fillRect(ridgeX, r.y, roofX1 - ridgeX, r.h);
   ctx.strokeStyle = 'rgba(0,0,0,0.25)';
   ctx.lineWidth = 1;
-  const ridgeX = (roofX0 + roofX1) / 2;
   for (let ly = r.y + 6; ly < r.y + r.h; ly += 9) {
     ctx.beginPath();
     ctx.moveTo(ridgeX, ly);
@@ -1025,8 +1058,8 @@ function drawRoofGable(roofX0, roofX1, r, flip, pal) {
     ctx.lineTo(flip ? roofX0 + 3 : roofX1 - 3, ly + 2);
     ctx.stroke();
   }
-  ctx.strokeStyle = 'rgba(255,255,255,0.3)';
-  ctx.lineWidth = 1.5;
+  ctx.strokeStyle = 'rgba(255,255,255,0.45)';
+  ctx.lineWidth = 2;
   ctx.beginPath();
   ctx.moveTo(ridgeX, r.y + 2);
   ctx.lineTo(ridgeX, r.y + r.h - 2);
@@ -1050,9 +1083,11 @@ function drawRoofFlat(roofX0, roofX1, r, pal) {
 }
 
 function drawRoofTile(roofX0, roofX1, r, flip, pal) {
-  ctx.fillStyle = pal.roof;
-  ctx.fillRect(roofX0, r.y, roofX1 - roofX0, r.h);
   const ridgeX = (roofX0 + roofX1) / 2;
+  ctx.fillStyle = shadeColor(pal.roof, 22);
+  ctx.fillRect(roofX0, r.y, ridgeX - roofX0, r.h);
+  ctx.fillStyle = shadeColor(pal.roof, -24);
+  ctx.fillRect(ridgeX, r.y, roofX1 - ridgeX, r.h);
   ctx.strokeStyle = 'rgba(0,0,0,0.2)';
   ctx.lineWidth = 1;
   for (let ly = r.y + 6; ly < r.y + r.h; ly += 9) {
@@ -1070,8 +1105,8 @@ function drawRoofTile(roofX0, roofX1, r, flip, pal) {
       ctx.fill();
     }
   }
-  ctx.strokeStyle = 'rgba(255,255,255,0.3)';
-  ctx.lineWidth = 1.5;
+  ctx.strokeStyle = 'rgba(255,255,255,0.45)';
+  ctx.lineWidth = 2;
   ctx.beginPath();
   ctx.moveTo(ridgeX, r.y + 2); ctx.lineTo(ridgeX, r.y + r.h - 2);
   ctx.stroke();
@@ -1080,7 +1115,12 @@ function drawRoofTile(roofX0, roofX1, r, flip, pal) {
 function drawRoofAframe(roofX0, roofX1, r, flip, pal) {
   const apexX = flip ? roofX1 - 4 : roofX0 + 4;
   const baseX = flip ? roofX0 : roofX1;
-  ctx.fillStyle = pal.roof;
+  // shade from the tucked-in apex (dark) out to the exposed base (light)
+  // so the single slope still reads as sloped, not flat
+  const slopeGrad = ctx.createLinearGradient(apexX, r.y + r.h / 2, baseX, r.y + r.h / 2);
+  slopeGrad.addColorStop(0, shadeColor(pal.roof, -30));
+  slopeGrad.addColorStop(1, shadeColor(pal.roof, 20));
+  ctx.fillStyle = slopeGrad;
   ctx.beginPath();
   ctx.moveTo(apexX, r.y + r.h / 2);
   ctx.lineTo(baseX, r.y);
@@ -1125,10 +1165,11 @@ function drawHouse(h) {
   const roofX1 = flip ? r.x + r.w : facadeX0;
   const facadeW = facadeX1 - facadeX0;
 
-  // ground shadow cast by the whole building onto the yard
-  ctx.fillStyle = 'rgba(0,0,0,0.2)';
-  ctx.fillRect(r.x, r.y + r.h - 3, r.w, 8);
-  ctx.fillRect(flip ? r.x + r.w : r.x - 5, r.y + 3, 5, r.h - 3);
+  // ground shadow cast by the whole building onto the yard -- deliberately
+  // heavier than a flat-plan sprite would need, to sell the roof's height
+  ctx.fillStyle = 'rgba(0,0,0,0.32)';
+  ctx.fillRect(r.x, r.y + r.h - 2, r.w, 12);
+  ctx.fillRect(flip ? r.x + r.w : r.x - 8, r.y + 3, 8, r.h - 3);
 
   // --- roof zone (receding, away from the street) ---
   const roofStyle = pal.roofStyle || 'gable';
@@ -1269,7 +1310,12 @@ function drawBush(b) {
 // Mailbox art is a real sprite (one of 12 styles, cycled per house). A small
 // procedural flag + checkmark badge is layered on top so "flag up = done"
 // reads the same regardless of which mailbox sprite is in use.
-function drawMailbox(mb) {
+// The mailbox art is drawn at a slight angle with its opening/flag on the
+// right side of the image, so it only reads as "facing the street" for
+// left-side houses (street to the right) by default -- right-side houses
+// (street to the left) need the whole thing mirrored so it opens the
+// other way instead of facing back into the house.
+function drawMailbox(mb, side) {
   const img = IMAGES[`mailboxes.${mb.style}`];
   const groundY = mb.y + 16;
   ctx.fillStyle = 'rgba(0,0,0,0.15)';
@@ -1278,10 +1324,13 @@ function drawMailbox(mb) {
   ctx.fill();
 
   const dispH = 40;
-  const dispW = drawSprite(img, mb.x, groundY, dispH, 'bottom') || dispH * 0.7;
+  ctx.save();
+  ctx.translate(mb.x, groundY);
+  if (side === 'right') ctx.scale(-1, 1);
+  const dispW = drawSprite(img, 0, 0, dispH, 'bottom') || dispH * 0.7;
 
-  const flagX = mb.x + dispW * 0.32;
-  const topY = groundY - dispH + 4;
+  const flagX = dispW * 0.32;
+  const topY = -dispH + 4;
   ctx.strokeStyle = '#888';
   ctx.lineWidth = 1.4;
   ctx.beginPath();
@@ -1297,13 +1346,14 @@ function drawMailbox(mb) {
     ctx.fill();
     ctx.fillStyle = '#3bb54a';
     ctx.beginPath();
-    ctx.arc(mb.x, groundY - dispH - 6, 7, 0, Math.PI * 2);
+    ctx.arc(0, -dispH - 6, 7, 0, Math.PI * 2);
     ctx.fill();
     ctx.fillStyle = '#fff';
     ctx.font = 'bold 10px sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText('✓', mb.x, groundY - dispH - 3);
+    ctx.fillText('✓', 0, -dispH - 3);
   }
+  ctx.restore();
 }
 
 // Orients a side-view sprite (drawn facing +x) toward `angle` without ever
@@ -1359,7 +1409,7 @@ function drawVisionCone(dog) {
 function drawDog(dog) {
   const breed = dog.breed;
   const s = breed.size;
-  const dispH = 34 * s;
+  const dispH = 40 * s;
   const alerted = dog.suspicion > 0.5;
   const cat = dog.state === 'asleep' ? 'sleep' : (alerted ? 'bark' : 'move');
   const frames = dogAnimFrames(dog.breedKey, cat);
@@ -1417,7 +1467,7 @@ function drawPlayer(p) {
   ctx.save();
   ctx.translate(p.x, p.y);
   if (p.facingLeft) ctx.scale(-1, 1);
-  drawSprite(img, 0, 14, 38, 'bottom');
+  drawSprite(img, 0, 14, 44, 'bottom');
   ctx.restore();
 }
 
