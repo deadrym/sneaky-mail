@@ -1,0 +1,52 @@
+{
+ "chihuahua": {
+  "path": "assets/dogs/chihuahua.png",
+  "w": 57,
+  "h": 61
+ },
+ "frenchbulldog": {
+  "path": "assets/dogs/frenchbulldog.png",
+  "w": 61,
+  "h": 61
+ },
+ "labrador": {
+  "path": "assets/dogs/labrador.png",
+  "w": 74,
+  "h": 66
+ },
+ "yorkie": {
+  "path": "assets/dogs/yorkie.png",
+  "w": 58,
+  "h": 60
+ },
+ "shihtzu": {
+  "path": "assets/dogs/shihtzu.png",
+  "w": 68,
+  "h": 53
+ },
+ "goldenretriever": {
+  "path": "assets/dogs/goldenretriever.png",
+  "w": 65,
+  "h": 69
+ },
+ "shepherd": {
+  "path": "assets/dogs/shepherd.png",
+  "w": 77,
+  "h": 74
+ },
+ "pitbull": {
+  "path": "assets/dogs/pitbull.png",
+  "w": 75,
+  "h": 66
+ },
+ "goldendoodle": {
+  "path": "assets/dogs/goldendoodle.png",
+  "w": 72,
+  "h": 72
+ },
+ "dachshund": {
+  "path": "assets/dogs/dachshund.png",
+  "w": 79,
+  "h": 55
+ }
+}

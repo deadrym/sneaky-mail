@@ -1,0 +1,62 @@
+{
+ "arch_red": {
+  "path": "assets/mailboxes/arch_red.png",
+  "w": 106,
+  "h": 172
+ },
+ "community_green": {
+  "path": "assets/mailboxes/community_green.png",
+  "w": 123,
+  "h": 192
+ },
+ "pillar_green": {
+  "path": "assets/mailboxes/pillar_green.png",
+  "w": 105,
+  "h": 177
+ },
+ "pillar_navy": {
+  "path": "assets/mailboxes/pillar_navy.png",
+  "w": 97,
+  "h": 198
+ },
+ "wall_cream": {
+  "path": "assets/mailboxes/wall_cream.png",
+  "w": 110,
+  "h": 182
+ },
+ "rural_red": {
+  "path": "assets/mailboxes/rural_red.png",
+  "w": 123,
+  "h": 193
+ },
+ "postexpress_teal": {
+  "path": "assets/mailboxes/postexpress_teal.png",
+  "w": 124,
+  "h": 184
+ },
+ "collection_red": {
+  "path": "assets/mailboxes/collection_red.png",
+  "w": 118,
+  "h": 186
+ },
+ "numbered_teal": {
+  "path": "assets/mailboxes/numbered_teal.png",
+  "w": 125,
+  "h": 176
+ },
+ "house_snow": {
+  "path": "assets/mailboxes/house_snow.png",
+  "w": 137,
+  "h": 163
+ },
+ "post_darkred": {
+  "path": "assets/mailboxes/post_darkred.png",
+  "w": 140,
+  "h": 204
+ },
+ "pillar_cream": {
+  "path": "assets/mailboxes/pillar_cream.png",
+  "w": 104,
+  "h": 206
+ }
+}

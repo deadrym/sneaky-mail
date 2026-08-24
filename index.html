@@ -20,8 +20,14 @@
       <div id="suspicion-bar"></div>
     </div>
 
+    <!-- Loading -->
+    <div class="overlay" id="screen-loading">
+      <h2>Loading the route&hellip;</h2>
+    </div>
+
     <!-- Start / Menu -->
-    <div class="overlay" id="screen-menu">
+    <div class="overlay hidden" id="screen-menu">
+      <img class="menu-portrait" src="assets/mailman/portrait.png" alt="" />
       <h1>📬 Sneaky Mail</h1>
       <p class="tagline">Deliver the mail. Don't wake the dogs.</p>
       <button id="btn-start">Start Delivering</button>
@@ -54,6 +60,7 @@
 
     <!-- Busted -->
     <div class="overlay hidden" id="screen-busted">
+      <img class="screen-portrait" src="assets/mailman/hurt.png" alt="" />
       <h2>🐶 BUSTED!</h2>
       <p id="busted-msg">A dog spotted you!</p>
       <button id="btn-busted-retry">Try Again</button>
@@ -68,6 +75,7 @@
 
     <!-- Level Complete -->
     <div class="overlay hidden" id="screen-levelcomplete">
+      <img class="screen-portrait" src="assets/mailman/victory.png" alt="" />
       <h2>✅ Street Cleared!</h2>
       <p id="lc-msg"></p>
       <button id="btn-lc-next">Next Street</button>
@@ -75,6 +83,7 @@
 
     <!-- Win -->
     <div class="overlay hidden" id="screen-win">
+      <img class="screen-portrait" src="assets/mailman/victory.png" alt="" />
       <h2>🏆 Route Complete!</h2>
       <p>You delivered every letter on every street without a single bark. Sneaky Mail Legend!</p>
       <button id="btn-win-restart">Play Again</button>

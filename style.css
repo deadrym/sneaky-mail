@@ -97,6 +97,19 @@ canvas#game {
   margin: 0 0 6px;
 }
 
+.menu-portrait {
+  height: 140px;
+  image-rendering: pixelated;
+  margin-bottom: 4px;
+  filter: drop-shadow(0 8px 14px rgba(0,0,0,0.4));
+}
+
+.screen-portrait {
+  height: 96px;
+  image-rendering: pixelated;
+  margin-bottom: 6px;
+}
+
 .overlay h2 {
   font-size: 28px;
   margin: 0 0 10px;

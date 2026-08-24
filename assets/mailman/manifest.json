@@ -1,0 +1,37 @@
+{
+ "portrait": {
+  "path": "assets/mailman/portrait.png",
+  "w": 236,
+  "h": 464
+ },
+ "walk_0": {
+  "path": "assets/mailman/walk_0.png",
+  "w": 79,
+  "h": 139
+ },
+ "walk_1": {
+  "path": "assets/mailman/walk_1.png",
+  "w": 72,
+  "h": 139
+ },
+ "sneak_0": {
+  "path": "assets/mailman/sneak_0.png",
+  "w": 93,
+  "h": 124
+ },
+ "sneak_1": {
+  "path": "assets/mailman/sneak_1.png",
+  "w": 91,
+  "h": 126
+ },
+ "hurt": {
+  "path": "assets/mailman/hurt.png",
+  "w": 97,
+  "h": 147
+ },
+ "victory": {
+  "path": "assets/mailman/victory.png",
+  "w": 111,
+  "h": 170
+ }
+}

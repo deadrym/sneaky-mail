@@ -6,22 +6,86 @@ const ctx = canvas.getContext('2d');
 const VIEW_W = canvas.width;
 const VIEW_H = canvas.height;
 
+/* ---------- Sprite assets ---------- */
+const ASSET_PATHS = {
+  dogs: {
+    chihuahua: 'assets/dogs/chihuahua.png',
+    dachshund: 'assets/dogs/dachshund.png',
+    shihtzu: 'assets/dogs/shihtzu.png',
+    frenchbulldog: 'assets/dogs/frenchbulldog.png',
+    yorkie: 'assets/dogs/yorkie.png',
+    labrador: 'assets/dogs/labrador.png',
+    goldendoodle: 'assets/dogs/goldendoodle.png',
+    goldenretriever: 'assets/dogs/goldenretriever.png',
+    shepherd: 'assets/dogs/shepherd.png',
+    pitbull: 'assets/dogs/pitbull.png',
+  },
+  mailman: {
+    portrait: 'assets/mailman/portrait.png',
+    walk0: 'assets/mailman/walk_0.png',
+    walk1: 'assets/mailman/walk_1.png',
+    sneak0: 'assets/mailman/sneak_0.png',
+    sneak1: 'assets/mailman/sneak_1.png',
+    hurt: 'assets/mailman/hurt.png',
+    victory: 'assets/mailman/victory.png',
+  },
+  mailboxes: {
+    arch_red: 'assets/mailboxes/arch_red.png',
+    community_green: 'assets/mailboxes/community_green.png',
+    pillar_green: 'assets/mailboxes/pillar_green.png',
+    pillar_navy: 'assets/mailboxes/pillar_navy.png',
+    wall_cream: 'assets/mailboxes/wall_cream.png',
+    rural_red: 'assets/mailboxes/rural_red.png',
+    postexpress_teal: 'assets/mailboxes/postexpress_teal.png',
+    collection_red: 'assets/mailboxes/collection_red.png',
+    numbered_teal: 'assets/mailboxes/numbered_teal.png',
+    house_snow: 'assets/mailboxes/house_snow.png',
+    post_darkred: 'assets/mailboxes/post_darkred.png',
+    pillar_cream: 'assets/mailboxes/pillar_cream.png',
+  },
+};
+
+const IMAGES = {};
+function preloadImages(onDone) {
+  const entries = [];
+  for (const group in ASSET_PATHS) {
+    for (const key in ASSET_PATHS[group]) entries.push([`${group}.${key}`, ASSET_PATHS[group][key]]);
+  }
+  let remaining = entries.length;
+  const settle = () => { remaining--; if (remaining <= 0) onDone(); };
+  entries.forEach(([fullKey, src]) => {
+    const img = new Image();
+    img.onload = settle;
+    img.onerror = settle;
+    img.src = src;
+    IMAGES[fullKey] = img;
+  });
+}
+function drawSprite(img, x, y, dispH, anchor) {
+  // anchor: 'center' (default) or 'bottom' (image bottom edge sits at y)
+  if (!img || !img.complete || !img.naturalHeight) return;
+  const dispW = dispH * (img.naturalWidth / img.naturalHeight);
+  const dy = anchor === 'bottom' ? y - dispH : y - dispH / 2;
+  ctx.drawImage(img, x - dispW / 2, dy, dispW, dispH);
+  return dispW;
+}
+
 /* ---------- Dog breed catalog ---------- */
 /* range: sight distance (px). coneDeg: vision cone width (degrees).
    speed: patrol/turn speed. fillRate: suspicion gained per second while seen.
    behavior: 'pace' (walks a patrol line), 'sentry' (stands still, sweeps gaze),
              'sleepy' (naps on a timer, blind while asleep), 'erratic' (random direction changes) */
 const BREEDS = {
-  chihuahua:   { name: 'Chihuahua',              color: '#d9c199', dark: '#b8905a', light: '#f0e0bc', collar: '#3a6ea8', earStyle: 'pointy', size: 0.60, range: 55,  coneDeg: 50, speed: 40, fillRate: 0.50, behavior: 'pace' },
-  dachshund:   { name: 'Dachshund',              color: '#a35d2b', dark: '#7a4620', light: '#c98a4f', collar: '#3a6ea8', earStyle: 'floppy', size: 0.80, range: 65,  coneDeg: 50, speed: 24, fillRate: 0.55, behavior: 'pace' },
-  shihtzu:     { name: 'Shih Tzu',               color: '#f0e6d2', dark: '#c9b48a', light: '#fff8ea', collar: '#3a6ea8', earStyle: 'floppy', size: 0.75, range: 60,  coneDeg: 50, speed: 18, fillRate: 0.45, behavior: 'sleepy' },
-  frenchbulldog:{ name: 'French Bulldog',        color: '#4a4a52', dark: '#2a2a30', light: '#6a6a72', collar: '#3a6ea8', earStyle: 'pointy', size: 0.90, range: 75,  coneDeg: 60, speed: 20, fillRate: 0.60, behavior: 'sentry' },
-  yorkie:      { name: 'Yorkshire Terrier',      color: '#8a6a3a', dark: '#2a2018', light: '#c9a25a', collar: '#3a6ea8', earStyle: 'pointy', size: 0.65, range: 85,  coneDeg: 60, speed: 34, fillRate: 0.70, behavior: 'erratic' },
-  labrador:    { name: 'Labrador Retriever',     color: '#2e2a26', dark: '#0f0d0b', light: '#4a453f', collar: '#3a6ea8', earStyle: 'floppy', size: 1.05, range: 95,  coneDeg: 60, speed: 34, fillRate: 0.65, behavior: 'pace' },
-  goldendoodle:{ name: 'Goldendoodle',           color: '#e0c078', dark: '#b89050', light: '#f5e0b0', collar: '#3a6ea8', earStyle: 'floppy', size: 1.00, range: 90,  coneDeg: 65, speed: 32, fillRate: 0.70, behavior: 'erratic' },
-  goldenretriever:{ name: 'Golden Retriever',    color: '#e8a83a', dark: '#b8781e', light: '#f7c96a', collar: '#3a6ea8', earStyle: 'floppy', size: 1.05, range: 105, coneDeg: 65, speed: 34, fillRate: 0.75, behavior: 'sentry' },
-  shepherd:    { name: 'German Shepherd',        color: '#8a5a2e', dark: '#2a1a10', light: '#b07d45', collar: '#3a6ea8', earStyle: 'pointy', size: 1.10, range: 122, coneDeg: 70, speed: 48, fillRate: 0.85, behavior: 'pace' },
-  pitbull:     { name: 'American Pit Bull Terrier', color: '#8a8f94', dark: '#4a4e52', light: '#b5b9bc', collar: '#3a6ea8', earStyle: 'pointy', size: 1.15, range: 135, coneDeg: 70, speed: 46, fillRate: 0.90, behavior: 'sentry' },
+  chihuahua:   { name: 'Chihuahua',              size: 0.60, range: 55,  coneDeg: 50, speed: 40, fillRate: 0.50, behavior: 'pace' },
+  dachshund:   { name: 'Dachshund',              size: 0.80, range: 65,  coneDeg: 50, speed: 24, fillRate: 0.55, behavior: 'pace' },
+  shihtzu:     { name: 'Shih Tzu',               size: 0.75, range: 60,  coneDeg: 50, speed: 18, fillRate: 0.45, behavior: 'sleepy' },
+  frenchbulldog:{ name: 'French Bulldog',        size: 0.90, range: 75,  coneDeg: 60, speed: 20, fillRate: 0.60, behavior: 'sentry' },
+  yorkie:      { name: 'Yorkshire Terrier',      size: 0.65, range: 85,  coneDeg: 60, speed: 34, fillRate: 0.70, behavior: 'erratic' },
+  labrador:    { name: 'Labrador Retriever',     size: 1.05, range: 95,  coneDeg: 60, speed: 34, fillRate: 0.65, behavior: 'pace' },
+  goldendoodle:{ name: 'Goldendoodle',           size: 1.00, range: 90,  coneDeg: 65, speed: 32, fillRate: 0.70, behavior: 'erratic' },
+  goldenretriever:{ name: 'Golden Retriever',    size: 1.05, range: 105, coneDeg: 65, speed: 34, fillRate: 0.75, behavior: 'sentry' },
+  shepherd:    { name: 'German Shepherd',        size: 1.10, range: 122, coneDeg: 70, speed: 48, fillRate: 0.85, behavior: 'pace' },
+  pitbull:     { name: 'American Pit Bull Terrier', size: 1.15, range: 135, coneDeg: 70, speed: 46, fillRate: 0.90, behavior: 'sentry' },
 };
 
 /* House siding/roof/door/trim color variants, cycled per house for street variety */
@@ -33,15 +97,8 @@ const HOUSE_PALETTES = [
   { siding: '#e8dcc0', roof: '#5a4a6a', door: '#3a2a3a', trim: '#c0b090', roofStyle: 'gable' },
 ];
 
-/* Mailbox body styles/colors, cycled per house for street variety */
-const MAILBOX_STYLES = ['classicArch', 'pillar', 'house', 'ruralFlag', 'wall'];
-const MAILBOX_COLORS = [
-  { color: '#c94141', dark: '#9c3131' },
-  { color: '#3a8a7a', dark: '#2a685c' },
-  { color: '#4a6fa5', dark: '#365580' },
-  { color: '#2f6b4a', dark: '#204d35' },
-  { color: '#d99a3a', dark: '#a8722a' },
-];
+/* Mailbox sprite styles, cycled per house for street variety */
+const MAILBOX_STYLES = Object.keys(ASSET_PATHS.mailboxes);
 
 /* ---------- Level configs ---------- */
 const LEVELS = [
@@ -114,7 +171,7 @@ window.addEventListener('keyup', (e) => { keys[e.key.toLowerCase()] = false; });
 
 /* ---------- Game state ---------- */
 const state = {
-  mode: 'menu', // menu, howto, levelintro, playing, paused, busted, gameover, levelcomplete, win
+  mode: 'loading', // loading, menu, howto, levelintro, playing, paused, busted, gameover, levelcomplete, win
   level: 0,     // 0-indexed
   lives: 3,
   world: null,
@@ -125,6 +182,7 @@ const state = {
 
 function screens() {
   return {
+    loading: document.getElementById('screen-loading'),
     menu: document.getElementById('screen-menu'),
     howto: document.getElementById('screen-howto'),
     levelintro: document.getElementById('screen-levelintro'),
@@ -186,7 +244,11 @@ function buildWorld(levelIndex) {
       speed: 130,
       sneakSpeed: 78,
       facing: Math.PI / 2,
+      facingLeft: false,
       sneaking: false,
+      moving: false,
+      animFrame: 0,
+      animTimer: 0,
     },
     startPlayer: { x: VIEW_W / 2, y: 60 },
   };
@@ -208,11 +270,9 @@ function makeHouse(side, topY, cfg, index) {
 
   const wallRect = { x: houseX, y: topY, w: houseW, h: HOUSE_H };
   const yardRect = { x: yardX, y: topY, w: yardW, h: HOUSE_H };
-  const mbColors = MAILBOX_COLORS[index % MAILBOX_COLORS.length];
   const mailbox = {
     x: mailboxX, y: topY + HOUSE_H / 2, delivered: false, r: 16,
     style: MAILBOX_STYLES[index % MAILBOX_STYLES.length],
-    boxColor: mbColors.color, boxDark: mbColors.dark,
   };
 
   // porch center = where sentry/pace dogs anchor (inside the yard, near the house), facing toward the street
@@ -380,11 +440,13 @@ function updatePlayer(dt) {
   if (keys['arrowright'] || keys['d']) dx += 1;
 
   p.sneaking = !!keys['shift'];
+  p.moving = dx !== 0 || dy !== 0;
 
-  if (dx !== 0 || dy !== 0) {
+  if (p.moving) {
     const len = Math.hypot(dx, dy);
     dx /= len; dy /= len;
     p.facing = Math.atan2(dy, dx);
+    if (dx !== 0) p.facingLeft = dx < 0;
     const spd = p.sneaking ? p.sneakSpeed : p.speed;
     const nx = p.x + dx * spd * dt;
     const ny = p.y + dy * spd * dt;
@@ -397,6 +459,15 @@ function updatePlayer(dt) {
     }
     p.x = blockedX ? p.x : clamp(nx, p.r, VIEW_W - p.r);
     p.y = blockedY ? p.y : clamp(ny, p.r, w.worldH - p.r);
+  }
+
+  if (p.moving) {
+    p.animTimer += dt;
+    const frameDur = p.sneaking ? 0.22 : 0.14;
+    if (p.animTimer > frameDur) { p.animTimer = 0; p.animFrame = 1 - p.animFrame; }
+  } else {
+    p.animFrame = 0;
+    p.animTimer = 0;
   }
 
   // mailbox delivery
@@ -886,135 +957,44 @@ function drawBush(b) {
   }
 }
 
-// Mailbox body styles, loosely modeled on classic USPS/rural/pillar/community
-// designs. Each style only replaces the box shape -- the post, flag, and
-// delivered-checkmark stay consistent across styles so the "flag up = done"
-// affordance always reads the same regardless of look.
+// Mailbox art is a real sprite (one of 12 styles, cycled per house). A small
+// procedural flag + checkmark badge is layered on top so "flag up = done"
+// reads the same regardless of which mailbox sprite is in use.
 function drawMailbox(mb) {
+  const img = IMAGES[`mailboxes.${mb.style}`];
+  const groundY = mb.y + 16;
   ctx.fillStyle = 'rgba(0,0,0,0.15)';
   ctx.beginPath();
-  ctx.ellipse(mb.x, mb.y + 20, 9, 3, 0, 0, Math.PI * 2);
+  ctx.ellipse(mb.x, groundY, 10, 3, 0, 0, Math.PI * 2);
   ctx.fill();
-  // post
-  const postGrad = ctx.createLinearGradient(mb.x - 2, 0, mb.x + 2, 0);
-  postGrad.addColorStop(0, '#6b4a2e'); postGrad.addColorStop(1, '#8a5a2e');
-  ctx.fillStyle = postGrad;
-  ctx.fillRect(mb.x - 2, mb.y - 2, 4, 22);
-  ctx.fillStyle = '#5a3e26';
-  ctx.fillRect(mb.x - 6, mb.y + 18, 12, 4);
 
-  const boxColor = mb.delivered ? '#3bb54a' : (mb.boxColor || '#c94141');
-  const boxDark = mb.delivered ? '#2a8a37' : (mb.boxDark || '#9c3131');
-  const style = mb.style || 'classicArch';
-  if (style === 'pillar') drawMailboxPillar(mb, boxColor, boxDark);
-  else if (style === 'house') drawMailboxHouse(mb, boxColor, boxDark);
-  else if (style === 'ruralFlag') drawMailboxRuralFlag(mb, boxColor, boxDark);
-  else if (style === 'wall') drawMailboxWall(mb, boxColor, boxDark);
-  else drawMailboxClassicArch(mb, boxColor, boxDark);
+  const dispH = 40;
+  const dispW = drawSprite(img, mb.x, groundY, dispH, 'bottom') || dispH * 0.7;
 
-  // flag
+  const flagX = mb.x + dispW * 0.32;
+  const topY = groundY - dispH + 4;
   ctx.strokeStyle = '#888';
   ctx.lineWidth = 1.4;
   ctx.beginPath();
-  ctx.moveTo(mb.x + 9, mb.y - 4);
-  ctx.lineTo(mb.x + 9, mb.y - (mb.delivered ? 16 : 4));
+  ctx.moveTo(flagX, topY + 12);
+  ctx.lineTo(flagX, topY + (mb.delivered ? 0 : 12));
   ctx.stroke();
-  ctx.fillStyle = '#d94141';
   if (mb.delivered) {
+    ctx.fillStyle = '#d94141';
     ctx.beginPath();
-    ctx.moveTo(mb.x + 9, mb.y - 16);
-    ctx.lineTo(mb.x + 15, mb.y - 13);
-    ctx.lineTo(mb.x + 9, mb.y - 10);
+    ctx.moveTo(flagX, topY);
+    ctx.lineTo(flagX + 7, topY + 3);
+    ctx.lineTo(flagX, topY + 6);
+    ctx.fill();
+    ctx.fillStyle = '#3bb54a';
+    ctx.beginPath();
+    ctx.arc(mb.x, groundY - dispH - 6, 7, 0, Math.PI * 2);
     ctx.fill();
     ctx.fillStyle = '#fff';
-    ctx.font = 'bold 11px sans-serif';
+    ctx.font = 'bold 10px sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText('✓', mb.x, mb.y - 6);
+    ctx.fillText('✓', mb.x, groundY - dispH - 3);
   }
-}
-
-function drawMailboxClassicArch(mb, boxColor, boxDark) {
-  ctx.fillStyle = boxDark;
-  ctx.beginPath();
-  ctx.moveTo(mb.x - 10, mb.y - 2);
-  ctx.arc(mb.x, mb.y - 10, 10, Math.PI, 0);
-  ctx.lineTo(mb.x + 10, mb.y - 2);
-  ctx.closePath();
-  ctx.fill();
-  ctx.fillStyle = boxColor;
-  ctx.beginPath();
-  ctx.moveTo(mb.x - 10, mb.y - 4);
-  ctx.arc(mb.x, mb.y - 12, 10, Math.PI, 0);
-  ctx.lineTo(mb.x + 10, mb.y - 4);
-  ctx.closePath();
-  ctx.fill();
-  ctx.fillStyle = 'rgba(255,255,255,0.35)';
-  ctx.beginPath();
-  ctx.ellipse(mb.x - 4, mb.y - 15, 4, 2, -0.3, 0, Math.PI * 2);
-  ctx.fill();
-}
-
-function drawMailboxPillar(mb, boxColor, boxDark) {
-  ctx.fillStyle = '#8a8680';
-  ctx.fillRect(mb.x - 7, mb.y, 14, 5);
-  ctx.fillStyle = boxDark;
-  ctx.fillRect(mb.x - 8, mb.y - 30, 16, 30);
-  ctx.fillStyle = boxColor;
-  ctx.fillRect(mb.x - 6, mb.y - 30, 12, 28);
-  ctx.beginPath();
-  ctx.ellipse(mb.x, mb.y - 30, 6, 4, 0, Math.PI, 0);
-  ctx.fill();
-  ctx.fillStyle = 'rgba(0,0,0,0.3)';
-  ctx.fillRect(mb.x - 4, mb.y - 20, 8, 2);
-  ctx.fillStyle = 'rgba(255,255,255,0.3)';
-  ctx.fillRect(mb.x - 4, mb.y - 26, 2, 20);
-}
-
-function drawMailboxHouse(mb, boxColor, boxDark) {
-  ctx.fillStyle = boxDark;
-  ctx.fillRect(mb.x - 9, mb.y - 16, 18, 14);
-  ctx.fillStyle = boxColor;
-  ctx.fillRect(mb.x - 8, mb.y - 15, 16, 13);
-  // gabled roof
-  ctx.fillStyle = '#5a6b7a';
-  ctx.beginPath();
-  ctx.moveTo(mb.x - 11, mb.y - 16);
-  ctx.lineTo(mb.x, mb.y - 25);
-  ctx.lineTo(mb.x + 11, mb.y - 16);
-  ctx.closePath();
-  ctx.fill();
-  ctx.fillStyle = 'rgba(0,0,0,0.35)';
-  ctx.fillRect(mb.x - 3, mb.y - 10, 6, 7);
-}
-
-function drawMailboxRuralFlag(mb, boxColor, boxDark) {
-  ctx.fillStyle = boxDark;
-  ctx.beginPath();
-  ctx.ellipse(mb.x, mb.y - 10, 11, 9, 0, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.fillStyle = boxColor;
-  ctx.beginPath();
-  ctx.ellipse(mb.x, mb.y - 11, 10, 8, 0, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.fillStyle = 'rgba(0,0,0,0.4)';
-  ctx.beginPath();
-  ctx.ellipse(mb.x + 6, mb.y - 11, 3.6, 6.2, 0, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.fillStyle = 'rgba(255,255,255,0.3)';
-  ctx.beginPath();
-  ctx.ellipse(mb.x - 4, mb.y - 15, 3.5, 1.8, -0.3, 0, Math.PI * 2);
-  ctx.fill();
-}
-
-function drawMailboxWall(mb, boxColor, boxDark) {
-  ctx.fillStyle = boxDark;
-  ctx.fillRect(mb.x - 9, mb.y - 20, 18, 18);
-  ctx.fillStyle = boxColor;
-  ctx.fillRect(mb.x - 8, mb.y - 19, 16, 16);
-  ctx.fillStyle = 'rgba(0,0,0,0.4)';
-  ctx.fillRect(mb.x - 5, mb.y - 13, 10, 2.5);
-  ctx.fillStyle = 'rgba(255,255,255,0.25)';
-  ctx.fillRect(mb.x - 6, mb.y - 17, 12, 2);
 }
 
 // Orients a side-view sprite (drawn facing +x) toward `angle` without ever
@@ -1058,6 +1038,8 @@ function drawVisionCone(dog) {
 function drawDog(dog) {
   const breed = dog.breed;
   const s = breed.size;
+  const img = IMAGES[`dogs.${dog.breedKey}`];
+  const dispH = 34 * s;
 
   // ground shadow
   ctx.fillStyle = 'rgba(0,0,0,0.22)';
@@ -1065,122 +1047,24 @@ function drawDog(dog) {
   ctx.ellipse(dog.x, dog.y + 8 * s, 15 * s, 5 * s, 0, 0, Math.PI * 2);
   ctx.fill();
 
-  ctx.save();
-  ctx.translate(dog.x, dog.y);
-
   if (dog.state === 'asleep') {
-    rotateFacing(dog.angle);
-    ctx.fillStyle = breed.dark;
-    ctx.beginPath();
-    ctx.ellipse(0, 3 * s, 16 * s, 9 * s, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = breed.color;
-    ctx.beginPath();
-    ctx.ellipse(0, 0, 16 * s, 9 * s, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = breed.dark;
-    ctx.beginPath();
-    ctx.ellipse(11 * s, 1, 6 * s, 5 * s, 0, 0, Math.PI * 2);
-    ctx.fill();
+    ctx.save();
+    ctx.translate(dog.x, dog.y);
+    ctx.globalAlpha = 0.92;
+    drawSprite(img, 0, 4, dispH * 0.85, 'center');
+    ctx.globalAlpha = 1;
     ctx.restore();
     ctx.fillStyle = '#fff';
-    ctx.font = `bold ${11}px sans-serif`;
+    ctx.font = 'bold 11px sans-serif';
     ctx.textAlign = 'left';
-    ctx.fillText('z z z', dog.x - 8, dog.y - 14 * s - 4);
+    ctx.fillText('z z z', dog.x - 8, dog.y - dispH / 2 - 4);
     return;
   }
 
+  ctx.save();
+  ctx.translate(dog.x, dog.y);
   rotateFacing(dog.angle);
-  const wag = Math.sin(performance.now() / 180 + dog.x * 0.3) * 0.5;
-
-  // legs (peek out from under the body)
-  ctx.fillStyle = breed.dark;
-  const legY = 7 * s;
-  [-9, -3, 5, 11].forEach((lx) => {
-    ctx.beginPath();
-    ctx.ellipse(lx * s, legY, 2.4 * s, 4 * s, 0, 0, Math.PI * 2);
-    ctx.fill();
-  });
-
-  // tail (wagging curve)
-  ctx.strokeStyle = breed.dark;
-  ctx.lineWidth = 4 * s;
-  ctx.lineCap = 'round';
-  ctx.beginPath();
-  ctx.moveTo(-14 * s, 0);
-  ctx.quadraticCurveTo(-22 * s, -6 * s + wag * 4, -24 * s, -10 * s + wag * 6);
-  ctx.stroke();
-
-  // body with volume shading
-  const bodyGrad = ctx.createRadialGradient(-3 * s, -4 * s, 2, 0, 0, 17 * s);
-  bodyGrad.addColorStop(0, breed.light);
-  bodyGrad.addColorStop(0.55, breed.color);
-  bodyGrad.addColorStop(1, breed.dark);
-  ctx.fillStyle = bodyGrad;
-  ctx.beginPath();
-  ctx.ellipse(-4 * s, 0, 12 * s, 8.5 * s, 0, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.beginPath();
-  ctx.ellipse(6 * s, -1, 9 * s, 7.5 * s, 0, 0, Math.PI * 2);
-  ctx.fill();
-
-  // collar
-  ctx.strokeStyle = breed.collar;
-  ctx.lineWidth = 2.2 * s;
-  ctx.beginPath();
-  ctx.ellipse(11 * s, 0, 4.2 * s, 5.2 * s, 0, 0.3, Math.PI * 1.6);
-  ctx.stroke();
-
-  // head
-  const headGrad = ctx.createRadialGradient(15 * s, -2 * s, 1, 14 * s, 0, 8 * s);
-  headGrad.addColorStop(0, breed.light);
-  headGrad.addColorStop(1, breed.color);
-  ctx.fillStyle = headGrad;
-  ctx.beginPath();
-  ctx.ellipse(15 * s, 0, 8 * s, 7 * s, 0, 0, Math.PI * 2);
-  ctx.fill();
-
-  // ears
-  ctx.fillStyle = breed.dark;
-  if (breed.earStyle === 'pointy') {
-    ctx.beginPath();
-    ctx.moveTo(11 * s, -5 * s);
-    ctx.lineTo(9 * s, -14 * s);
-    ctx.lineTo(15 * s, -7 * s);
-    ctx.fill();
-    ctx.beginPath();
-    ctx.moveTo(19 * s, -5 * s);
-    ctx.lineTo(21 * s, -14 * s);
-    ctx.lineTo(16 * s, -7 * s);
-    ctx.fill();
-  } else {
-    ctx.beginPath();
-    ctx.moveTo(11 * s, -5 * s);
-    ctx.quadraticCurveTo(6 * s, 0, 9 * s, 8 * s);
-    ctx.quadraticCurveTo(13 * s, 4 * s, 12 * s, -4 * s);
-    ctx.fill();
-  }
-
-  // snout + nose
-  ctx.fillStyle = breed.color;
-  ctx.beginPath();
-  ctx.ellipse(22 * s, 1, 4.5 * s, 3.2 * s, 0, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.fillStyle = breed.dark;
-  ctx.beginPath();
-  ctx.ellipse(25.5 * s, 1, 2 * s, 1.6 * s, 0, 0, Math.PI * 2);
-  ctx.fill();
-
-  // eye
-  ctx.fillStyle = '#1a1410';
-  ctx.beginPath();
-  ctx.arc(16.5 * s, -2.5 * s, 1.4 * s, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.fillStyle = 'rgba(255,255,255,0.7)';
-  ctx.beginPath();
-  ctx.arc(17 * s, -3 * s, 0.5 * s, 0, Math.PI * 2);
-  ctx.fill();
-
+  drawSprite(img, 0, 0, dispH, 'center');
   ctx.restore();
 
   // suspicion indicator (screen-aligned, not rotated with the dog)
@@ -1188,92 +1072,28 @@ function drawDog(dog) {
     ctx.fillStyle = dog.suspicion >= 0.99 ? '#ff2222' : '#ffcc33';
     ctx.font = 'bold 16px sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText(dog.suspicion > 0.6 ? '!' : '?', dog.x, dog.y - 18 * s - 4);
+    ctx.fillText(dog.suspicion > 0.6 ? '!' : '?', dog.x, dog.y - dispH / 2 - 6);
   }
 }
 
+// The mailman art is a side-view walking human (not a rotatable top-down
+// blob like the dogs), so it only ever mirrors left/right to face travel
+// direction -- it never rotates to "face" up/down, which would make a
+// bipedal sprite flop onto its side. Vertical movement keeps the last
+// horizontal facing, matching classic top-down character rendering.
 function drawPlayer(p) {
-  // shadow
   ctx.fillStyle = 'rgba(0,0,0,0.25)';
   ctx.beginPath();
-  ctx.ellipse(p.x, p.y + 9, 12, 5, 0, 0, Math.PI * 2);
+  ctx.ellipse(p.x, p.y + 16, 11, 4.5, 0, 0, Math.PI * 2);
   ctx.fill();
+
+  const frameSet = p.sneaking ? ['mailman.sneak0', 'mailman.sneak1'] : ['mailman.walk0', 'mailman.walk1'];
+  const img = IMAGES[frameSet[p.animFrame]];
 
   ctx.save();
   ctx.translate(p.x, p.y);
-  rotateFacing(p.facing);
-
-  const bodyColor = p.sneaking ? '#2b6e4f' : '#3f9463';
-  const bodyDark = p.sneaking ? '#1d4c36' : '#2c6d48';
-
-  // legs (subtle walking hint)
-  ctx.fillStyle = '#2e4a6b';
-  ctx.beginPath();
-  ctx.ellipse(-4, 7, 3.4, 5, 0, 0, Math.PI * 2);
-  ctx.ellipse(-4, -7, 3.4, 5, 0, 0, Math.PI * 2);
-  ctx.fill();
-
-  // mailbag with strap and flap
-  ctx.fillStyle = '#7a4a28';
-  ctx.beginPath();
-  ctx.ellipse(-6, 0, 3, 13, 0, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.fillStyle = '#3b5fa0';
-  ctx.beginPath();
-  ctx.ellipse(-5, 7, 8.5, 7, 0, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.fillStyle = '#2c4a80';
-  ctx.beginPath();
-  ctx.ellipse(-5, 4, 8, 4, 0, 0, Math.PI * 2);
-  ctx.fill();
-
-  // torso with shading
-  const torsoGrad = ctx.createRadialGradient(-2, -3, 2, 0, 0, 12);
-  torsoGrad.addColorStop(0, bodyColor);
-  torsoGrad.addColorStop(1, bodyDark);
-  ctx.fillStyle = torsoGrad;
-  ctx.beginPath();
-  ctx.ellipse(0, 0, 11, 11, 0, 0, Math.PI * 2);
-  ctx.fill();
-  // belt
-  ctx.strokeStyle = '#2a2a2a';
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.ellipse(0, 0, 11, 11, 0, 0.15, Math.PI - 0.15);
-  ctx.stroke();
-
-  // arms
-  ctx.fillStyle = bodyColor;
-  ctx.beginPath();
-  ctx.ellipse(2, 9, 3.4, 4.5, 0, 0, Math.PI * 2);
-  ctx.ellipse(2, -9, 3.4, 4.5, 0, 0, Math.PI * 2);
-  ctx.fill();
-
-  // head
-  ctx.fillStyle = '#e8b98a';
-  ctx.beginPath();
-  ctx.ellipse(7, 0, 5.4, 5.4, 0, 0, Math.PI * 2);
-  ctx.fill();
-  // face hint (eye)
-  ctx.fillStyle = '#2a1a12';
-  ctx.beginPath();
-  ctx.arc(10, -1.5, 1, 0, Math.PI * 2);
-  ctx.fill();
-
-  // cap with brim
-  ctx.fillStyle = '#274b7a';
-  ctx.beginPath();
-  ctx.ellipse(6, -1, 6, 4.4, 0, Math.PI, 0);
-  ctx.fill();
-  ctx.fillStyle = '#1c3a5e';
-  ctx.beginPath();
-  ctx.ellipse(9.5, -1, 3.2, 1.6, 0, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.fillStyle = '#ffd54a';
-  ctx.beginPath();
-  ctx.arc(6, -3.4, 1.1, 0, Math.PI * 2);
-  ctx.fill();
-
+  if (p.facingLeft) ctx.scale(-1, 1);
+  drawSprite(img, 0, 14, 38, 'bottom');
   ctx.restore();
 }
 
@@ -1308,4 +1128,4 @@ document.getElementById('btn-resume').onclick = () => togglePause();
 document.getElementById('btn-pause-restart').onclick = () => { restartLevel(); };
 document.getElementById('btn-pause-menu').onclick = () => { state.mode = 'menu'; showOnly('menu'); };
 
-showOnly('menu');
+preloadImages(() => { state.mode = 'menu'; showOnly('menu'); });
