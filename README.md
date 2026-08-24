@@ -14,7 +14,7 @@ server, e.g. `python3 -m http.server`).
 - **Deliver mail:** Walk up to a mailbox — it's automatic
 - **Avoid:** Dog vision cones. Standing in one fills a suspicion meter; if it
   maxes out, the dog barks and you lose a life
-- **Hide:** Bushes block a dog's line of sight
+- **Hide:** Trees, hedges and shrubs block a dog's line of sight (and all yard decor is solid)
 - **Pause:** P &nbsp; **Restart level:** R
 
 ## Features

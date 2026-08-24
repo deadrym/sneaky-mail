@@ -30,6 +30,13 @@ const ASSET_PATHS = {
     hurt: 'assets/mailman/hurt.png',
     victory: 'assets/mailman/victory.png',
   },
+  lots: {
+    brick: 'assets/houses/01_brick_cottage_yard.png',
+    cabin: 'assets/houses/02_cabin_yard.png',
+    modern: 'assets/houses/03_modern_house_yard.png',
+    green: 'assets/houses/04_green_cottage_yard.png',
+    spanish: 'assets/houses/05_spanish_house_yard.png',
+  },
   mailboxes: {
     arch_red: 'assets/mailboxes/arch_red.png',
     community_green: 'assets/mailboxes/community_green.png',
@@ -132,17 +139,116 @@ const BREEDS = {
   pitbull:     { name: 'American Pit Bull Terrier', size: 1.15, range: 264, nearRadius: 76, coneDeg: 70, speed: 46, fillRate: 1.44, behavior: 'sentry' },
 };
 
-/* House siding/roof/door/trim color variants, cycled per house for street variety */
-const HOUSE_PALETTES = [
-  { siding: '#d8c39a', roof: '#8a4a3a', door: '#5a3a22', trim: '#a9865a', roofStyle: 'gable' },
-  { siding: '#c9d6c0', roof: '#465264', door: '#3a2a1a', trim: '#8a9a80', roofStyle: 'flat' },
-  { siding: '#e0c9b0', roof: '#b3552e', door: '#2e2a26', trim: '#b09070', roofStyle: 'tile' },
-  { siding: '#cfe0d8', roof: '#3a4a3a', door: '#4a2a1a', trim: '#8fae9d', roofStyle: 'aframe' },
-  { siding: '#e8dcc0', roof: '#5a4a6a', door: '#3a2a3a', trim: '#c0b090', roofStyle: 'gable' },
-];
-
 /* Mailbox sprite styles, cycled per house for street variety */
 const MAILBOX_STYLES = Object.keys(ASSET_PATHS.mailboxes);
+
+/* ---------- Lot art + collision ----------
+   Each lot is one hand-drawn scene image (house, yard, decor, sidewalk all
+   baked in), so the obstacles in it can't be derived at runtime -- they're
+   authored here as rectangles in the image's own pixel coordinates and
+   translated to world space when the lot is placed.
+     solid: blocks movement for the player and dogs
+     sight: additionally blocks a dog's line of sight (foliage you can hide
+            behind); buildings block sight too, set implicitly for `house`
+   `mailbox` / `dogSpawn` are also image-space points. */
+const LOT_TYPES = [
+  {
+    key: 'brick', w: 646, h: 462, sidewalkY: 430,
+    house: { x: 172, y: 30, w: 282, h: 292 },
+    solids: [
+      { x: 6, y: 55, w: 105, h: 140, sight: true },
+      { x: 98, y: 178, w: 74, h: 42 },
+      { x: 0, y: 200, w: 104, h: 108, sight: true },
+      { x: 148, y: 332, w: 64, h: 68 },
+      { x: 30, y: 358, w: 66, h: 48 },
+      { x: 236, y: 302, w: 44, h: 40 },
+      { x: 342, y: 282, w: 40, h: 44 },
+      { x: 488, y: 0, w: 80, h: 120, sight: true },
+      { x: 592, y: 0, w: 54, h: 74, sight: true },
+      { x: 566, y: 148, w: 80, h: 130, sight: true },
+      { x: 532, y: 292, w: 84, h: 110, sight: true },
+      { x: 452, y: 246, w: 44, h: 38 },
+      { x: 452, y: 342, w: 32, h: 84 },
+    ],
+    mailbox: { x: 398, y: 360 }, dogSpawn: { x: 330, y: 375 },
+  },
+  {
+    key: 'cabin', w: 336, h: 462, sidewalkY: 432,
+    house: { x: 28, y: 42, w: 236, h: 262 },
+    solids: [
+      { x: 0, y: 80, w: 30, h: 120, sight: true },
+      { x: 262, y: 55, w: 74, h: 108, sight: true },
+      { x: 30, y: 300, w: 34, h: 40 },
+      { x: 112, y: 252, w: 30, h: 40 },
+      { x: 0, y: 330, w: 60, h: 70, sight: true },
+      { x: 252, y: 300, w: 84, h: 118, sight: true },
+      { x: 286, y: 258, w: 28, h: 86 },
+    ],
+    mailbox: { x: 196, y: 362 }, dogSpawn: { x: 170, y: 385 },
+  },
+  {
+    key: 'modern', w: 462, h: 462, sidewalkY: 430,
+    house: { x: 95, y: 58, w: 272, h: 252 },
+    solids: [
+      { x: 0, y: 0, w: 60, h: 60, sight: true },
+      { x: 385, y: 10, w: 77, h: 80, sight: true },
+      { x: 50, y: 150, w: 55, h: 60, sight: true },
+      { x: 45, y: 240, w: 60, h: 70, sight: true },
+      { x: 30, y: 330, w: 60, h: 55, sight: true },
+      { x: 60, y: 365, w: 40, h: 35 },
+      { x: 248, y: 268, w: 32, h: 42 },
+      { x: 370, y: 250, w: 60, h: 70, sight: true },
+      { x: 385, y: 330, w: 70, h: 60, sight: true },
+      { x: 425, y: 255, w: 35, h: 30 },
+      { x: 355, y: 365, w: 30, h: 80 },
+    ],
+    mailbox: { x: 245, y: 345 }, dogSpawn: { x: 200, y: 385 },
+  },
+  {
+    key: 'green', w: 692, h: 479, sidewalkY: 445,
+    house: { x: 300, y: 18, w: 242, h: 220 },
+    solids: [
+      { x: 120, y: 25, w: 90, h: 80, sight: true },
+      { x: 55, y: 150, w: 175, h: 110, sight: true },
+      { x: 45, y: 180, w: 60, h: 60, sight: true },
+      { x: 60, y: 280, w: 110, h: 90, sight: true },
+      { x: 198, y: 285, w: 22, h: 35 },
+      { x: 255, y: 240, w: 40, h: 35 },
+      { x: 305, y: 190, w: 60, h: 60, sight: true },
+      { x: 520, y: 255, w: 40, h: 35 },
+      { x: 470, y: 355, w: 120, h: 55 },
+      { x: 550, y: 265, w: 60, h: 80 },
+      { x: 600, y: 30, w: 70, h: 110, sight: true },
+      { x: 585, y: 175, w: 90, h: 110, sight: true },
+      { x: 620, y: 300, w: 72, h: 90, sight: true },
+    ],
+    mailbox: { x: 432, y: 272 }, dogSpawn: { x: 380, y: 340 },
+  },
+  {
+    key: 'spanish', w: 757, h: 479, sidewalkY: 448,
+    house: { x: 148, y: 8, w: 364, h: 242 },
+    solids: [
+      { x: 55, y: 55, w: 70, h: 110, sight: true },
+      { x: 60, y: 175, w: 60, h: 90, sight: true },
+      { x: 110, y: 190, w: 40, h: 60 },
+      { x: 130, y: 330, w: 90, h: 70, sight: true },
+      { x: 115, y: 370, w: 50, h: 40 },
+      { x: 355, y: 195, w: 50, h: 60, sight: true },
+      { x: 405, y: 355, w: 70, h: 60, sight: true },
+      { x: 505, y: 275, w: 80, h: 85 },
+      { x: 545, y: 375, w: 80, h: 45 },
+      { x: 580, y: 60, w: 130, h: 120, sight: true },
+      { x: 615, y: 300, w: 30, h: 80 },
+      { x: 0, y: 320, w: 28, h: 90 },
+      { x: 700, y: 230, w: 57, h: 70, sight: true },
+      { x: 690, y: 355, w: 67, h: 70, sight: true },
+      { x: 85, y: 285, w: 45, h: 60, sight: true },
+      { x: 228, y: 345, w: 42, h: 55, sight: true },
+      { x: 700, y: 0, w: 57, h: 60, sight: true },
+    ],
+    mailbox: { x: 292, y: 282 }, dogSpawn: { x: 330, y: 355 },
+  },
+];
 
 /* ---------- Level configs ---------- */
 const LEVELS = [
@@ -158,81 +264,22 @@ const LEVELS = [
   { houses: 9, breeds: ['pitbull', 'shepherd', 'goldenretriever', 'labrador'], doubleDogHouses: 5, bushChance: 0.05, desc: 'The final gauntlet. Every elite breed on the route.' },
 ];
 
-const HOUSE_H = 210;
-const HOUSE_GAP = 26;
-const HOUSE_W = 150;
-const YARD_W = 190;
-const STREET_W = 180;      // vertical corridor street width, and horizontal cross-street width
-// A single vertical corridor keeps the whole map within one screen-width --
-// no horizontal camera panning -- with houses alternating sides down it and
-// extra rows simply extending the map downward. CORRIDOR_COUNT > 1 would
-// place additional corridors side by side instead (off-screen, requiring
-// horizontal panning), which is what this used to do.
-const CORRIDOR_COUNT = 1;
-const CORRIDOR_GAP = 60;   // back-lot buffer between one corridor's houses and the next corridor's (unused while CORRIDOR_COUNT is 1)
-const CORRIDOR_W = HOUSE_W + YARD_W + STREET_W + YARD_W + HOUSE_W;
-const ROW_H = HOUSE_H + HOUSE_GAP;
-const ROWS_PER_BLOCK = 2;  // house-rows between horizontal cross streets
-const MARGIN_TOP = 140;
-const MARGIN_BOTTOM = 160;
+const STREET_W = 170;      // horizontal street band width
+const WORLD_W = 880;       // fits the widest lot plus verge, and stays under
+                           // the 900px canvas so the camera never pans sideways
+const MARGIN_TOP = 150;    // grass verge above the first lot, where the player starts
+const MARGIN_BOTTOM = 150;
+const SKY_H = 96;          // decorative horizon strip, kept clear of the first lot
 
-// A real block grid: houses alternate sides of the corridor row by row, and
-// every ROWS_PER_BLOCK rows a horizontal cross street cuts across it at the
-// same world Y, forming actual 4-way intersections instead of one long
-// straight or winding line.
-function corridorX0(corridorIndex) {
-  return corridorIndex * (CORRIDOR_W + CORRIDOR_GAP);
-}
-function rowSlotY(rowSlot) {
-  const blockIndex = Math.floor(rowSlot / ROWS_PER_BLOCK);
-  const rowInBlock = rowSlot % ROWS_PER_BLOCK;
-  return MARGIN_TOP + blockIndex * (ROWS_PER_BLOCK * ROW_H + STREET_W) + rowInBlock * ROW_H;
-}
-// One band per *complete* ROWS_PER_BLOCK-row block, which are always
-// correctly positioned right after their block -- plus one more band right
-// after the true last row whenever the final block is only partially
-// filled (an odd rowSlotCount), so the two corridors are always joined by
-// at least one street instead of that trailing connector silently landing
-// past the edge of the map and getting cut off.
-function crossStreetBands(rowSlotCount) {
-  if (rowSlotCount <= 0) return [];
-  const fullBlocks = Math.floor(rowSlotCount / ROWS_PER_BLOCK);
-  const bands = [];
-  for (let b = 0; b < fullBlocks; b++) {
-    const y0 = MARGIN_TOP + b * (ROWS_PER_BLOCK * ROW_H + STREET_W) + ROWS_PER_BLOCK * ROW_H;
-    bands.push({ y0, y1: y0 + STREET_W });
-  }
-  if (rowSlotCount % ROWS_PER_BLOCK !== 0) {
-    const y0 = rowSlotY(rowSlotCount - 1) + HOUSE_H + HOUSE_GAP;
-    bands.push({ y0, y1: y0 + STREET_W });
-  }
-  return bands;
-}
+// The route is one column of full-width lots stacked downward, each with a
+// horizontal street running along its front edge. Every lot is a single
+// hand-drawn scene (house + yard + decor), so a "row" is a whole property
+// rather than a thin house strip -- the yard is the play space, and its
+// baked-in decor is what the collision rectangles in LOT_TYPES make solid.
 
 /* ---------- Utility ---------- */
 function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
 function dist(ax, ay, bx, by) { return Math.hypot(ax - bx, ay - by); }
-// Places stones at even spacing along a polyline (a sequence of straight
-// legs), used for the maze-like stepping-stone yard paths. `nextDist` is
-// the absolute distance-along-the-whole-path where the next stone belongs,
-// so spacing carries correctly across the sharp turns between legs.
-function stonesAlongPath(points, spacing) {
-  const stones = [];
-  let nextDist = 0;
-  let walked = 0;
-  for (let i = 0; i < points.length - 1; i++) {
-    const a = points[i], b = points[i + 1];
-    const segLen = dist(a.x, a.y, b.x, b.y);
-    while (nextDist <= walked + segLen) {
-      const t = segLen > 0 ? (nextDist - walked) / segLen : 0;
-      const jx = (Math.random() - 0.5) * 3, jy = (Math.random() - 0.5) * 3;
-      stones.push({ x: a.x + (b.x - a.x) * t + jx, y: a.y + (b.y - a.y) * t + jy, r: 8 + Math.random() * 3.5, rot: Math.random() * Math.PI, moss: Math.random() < 0.2 });
-      nextDist += spacing;
-    }
-    walked += segLen;
-  }
-  return stones;
-}
 function normAngle(a) {
   while (a > Math.PI) a -= Math.PI * 2;
   while (a < -Math.PI) a += Math.PI * 2;
@@ -277,6 +324,7 @@ window.addEventListener('keydown', (e) => {
   if (['arrowup', 'arrowdown', 'arrowleft', 'arrowright', ' '].includes(e.key.toLowerCase())) e.preventDefault();
   if (e.key.toLowerCase() === 'p') togglePause();
   if (e.key.toLowerCase() === 'r' && state.mode === 'playing') restartLevel();
+  if (e.key.toLowerCase() === 'c') state.showCollision = !state.showCollision;
 });
 window.addEventListener('keyup', (e) => { keys[e.key.toLowerCase()] = false; });
 
@@ -299,6 +347,7 @@ const state = {
   caughtStartX: 0,
   caughtStartY: 0,
   shakeMag: 0,
+  showCollision: false, // C toggles the obstacle-rectangle overlay
 };
 
 function screens() {
@@ -324,54 +373,24 @@ function showOnly(name) {
 function buildWorld(levelIndex) {
   const cfg = LEVELS[levelIndex];
   const houses = [];
-  const rowSlotCount = Math.ceil(cfg.houses / CORRIDOR_COUNT);
+  const crossStreets = [];
+  const worldW = WORLD_W;
 
+  // stack lots downward: lot, then the street along its front edge, repeat
+  let cursorY = MARGIN_TOP;
   for (let i = 0; i < cfg.houses; i++) {
-    const corridor = i % CORRIDOR_COUNT;
-    const rowSlot = Math.floor(i / CORRIDOR_COUNT);
-    const side = rowSlot % 2 === 0 ? 'left' : 'right';
-    const topY = rowSlotY(rowSlot);
-    const house = makeHouse(side, topY, cfg, i, corridorX0(corridor));
-    houses.push(house);
+    const lot = LOT_TYPES[i % LOT_TYPES.length];
+    houses.push(makeHouse(lot, Math.round((worldW - lot.w) / 2), cursorY, cfg, i));
+    const streetY0 = cursorY + lot.h;
+    crossStreets.push({ y0: streetY0, y1: streetY0 + STREET_W });
+    cursorY = streetY0 + STREET_W;
   }
 
-  // a level's house count doesn't always fill every (row, corridor) slot
-  // evenly -- rather than leave the leftover slot as dead grass, dress it
-  // up as a little public park (purely decorative, not part of the route)
-  // so the screen never reads as half-finished
-  const parks = [];
-  for (let rowSlot = 0; rowSlot < rowSlotCount; rowSlot++) {
-    for (let corridor = 0; corridor < CORRIDOR_COUNT; corridor++) {
-      if (rowSlot * CORRIDOR_COUNT + corridor < cfg.houses) continue;
-      const side = rowSlot % 2 === 0 ? 'left' : 'right';
-      parks.push(makePark(side, rowSlotY(rowSlot), corridorX0(corridor)));
-    }
-  }
-
-  const worldW = corridorX0(CORRIDOR_COUNT - 1) + CORRIDOR_W;
-  const crossStreets = crossStreetBands(rowSlotCount);
-  // the world must extend past whichever is lower: the last row of houses,
-  // or the last cross street (which always sits at or below the last row) --
-  // otherwise a trailing connector street could get clipped off the map
-  const lastRowBottom = rowSlotY(rowSlotCount - 1) + HOUSE_H;
-  const lastBandBottom = crossStreets.length ? crossStreets[crossStreets.length - 1].y1 : lastRowBottom;
-  const worldH = Math.max(lastRowBottom, lastBandBottom) + MARGIN_BOTTOM;
+  const worldH = cursorY + MARGIN_BOTTOM;
   const totalMail = houses.length;
 
   // static decorative elements, precomputed once so they don't flicker/jitter each frame
   const roadSpeckles = [];
-  for (let c = 0; c < CORRIDOR_COUNT; c++) {
-    const cx0 = corridorX0(c) + HOUSE_W + YARD_W;
-    const count = Math.round(worldH / 16);
-    for (let i = 0; i < count; i++) {
-      roadSpeckles.push({
-        x: cx0 + 34 + Math.random() * (STREET_W - 68),
-        y: Math.random() * worldH,
-        r: 1 + Math.random() * 1.8,
-        a: 0.05 + Math.random() * 0.08,
-      });
-    }
-  }
   for (const band of crossStreets) {
     const count = Math.round(worldW / 16);
     for (let i = 0; i < count; i++) {
@@ -384,34 +403,44 @@ function buildWorld(levelIndex) {
     }
   }
   const clouds = [];
-  for (let i = 0; i < Math.max(3, Math.round(worldW / 400)); i++) {
-    clouds.push({ x: 80 + Math.random() * (worldW - 160), y: 20 + Math.random() * 90, s: 0.7 + Math.random() * 0.6 });
+  for (let i = 0; i < 4; i++) {
+    clouds.push({ x: 80 + Math.random() * (worldW - 160), y: 10 + Math.random() * 60, s: 0.7 + Math.random() * 0.6 });
   }
 
-  // a loose treeline down each back-lot gap between corridors, so that
-  // empty buffer strip doesn't read as a dead void
-  const gapTrees = [];
-  for (let c = 0; c < CORRIDOR_COUNT - 1; c++) {
-    const gx = corridorX0(c) + CORRIDOR_W + CORRIDOR_GAP / 2;
-    for (let y = 80; y < worldH - 40; y += 90 + Math.random() * 60) {
-      gapTrees.push({ x: gx + (Math.random() - 0.5) * 20, y, r: 14 + Math.random() * 8, kind: Math.random() < 0.5 ? 'pine' : 'round' });
+  // A dense hedgerow hugging both edges of every lot, so the leftover verge
+  // beside a narrow lot reads as the neighbours' hedges rather than a void.
+  const verge = [], tufts = [];
+  const shades = [['#5aa353', '#2f6b34'], ['#68b25f', '#356f38'], ['#4f9a4a', '#2a5f2f']];
+  for (const h of houses) {
+    const lotL = h.rect.x, lotR = h.rect.x + h.rect.w;
+    for (const [edgeX, dir] of [[lotL, -1], [lotR, 1]]) {
+      const gap = dir < 0 ? lotL : worldW - lotR;
+      if (gap < 26) continue;
+      const hedgeX = edgeX + dir * Math.min(22, gap * 0.4);
+      for (let y = h.rect.y - 6; y < h.rect.y + h.rect.h + 6; y += 15) {
+        const [light, dark] = shades[Math.floor(Math.random() * shades.length)];
+        verge.push({ x: hedgeX + (Math.random() - 0.5) * 10, y, r: 17 + Math.random() * 7, light, dark });
+      }
+      const gapX0 = dir < 0 ? 0 : lotR;
+      for (let i = 0; i < Math.round(gap / 3); i++) {
+        tufts.push({ x: gapX0 + Math.random() * gap, y: h.rect.y + Math.random() * h.rect.h, rot: Math.random() * Math.PI });
+      }
     }
   }
 
-  const startX = corridorX0(0) + CORRIDOR_W / 2;
+  const startX = worldW / 2;
   return {
     cfg,
     houses,
-    parks,
     worldW,
     worldH,
     crossStreets,
     totalMail,
     delivered: 0,
-    decor: { roadSpeckles, clouds, gapTrees },
+    decor: { roadSpeckles, clouds, verge, tufts },
     player: {
       x: startX,
-      y: 60,
+      y: MARGIN_TOP - 32,
       r: 11,
       speed: 130,
       sneakSpeed: 78,
@@ -422,168 +451,60 @@ function buildWorld(levelIndex) {
       animFrame: 0,
       animTimer: 0,
     },
-    startPlayer: { x: startX, y: 60 },
+    startPlayer: { x: startX, y: MARGIN_TOP - 32 },
   };
 }
 
-const YARD_THEMES = ['garden', 'wooded', 'ornamental', 'minimal'];
+// Places one lot at (lotX, topY): the scene image is drawn as-is, and its
+// authored obstacle rectangles are translated into world space so the decor
+// baked into the art actually blocks movement. The yard -- everything on the
+// lot below the building -- is the play space the dog patrols.
+function makeHouse(lot, lotX, topY, cfg, index) {
+  const rect = { x: lotX, y: topY, w: lot.w, h: lot.h };
+  const toWorld = (r) => ({ x: lotX + r.x, y: topY + r.y, w: r.w, h: r.h });
 
-function makeHouse(side, topY, cfg, index, corridorBaseX) {
-  const houseW = HOUSE_W;
-  const yardW = YARD_W;
-  const streetX0 = corridorBaseX + houseW + yardW;
-  let houseX, yardX;
-  if (side === 'left') {
-    yardX = streetX0 - yardW;
-    houseX = yardX - houseW;
-  } else {
-    yardX = streetX0 + STREET_W;
-    houseX = yardX + yardW;
-  }
+  const wallRect = toWorld(lot.house);
+  const solids = [{ ...wallRect, sight: true }, ...lot.solids.map((s) => ({ ...toWorld(s), sight: !!s.sight }))];
+  // sight blockers double as the "hide behind this" cover the dogs can't see through
+  const bushes = solids.filter((s) => s.sight);
 
-  const wallRect = { x: houseX, y: topY, w: houseW, h: HOUSE_H };
-  const yardRect = { x: yardX, y: topY, w: yardW, h: HOUSE_H };
-
-  const palette = HOUSE_PALETTES[index % HOUSE_PALETTES.length];
-  const hasChimney = index % 2 === 0;
-  const flowerWindow = Math.random() < 0.5 ? 0 : 1;
-  const doorX = side === 'left' ? houseX + houseW - 26 : houseX + 6;
-  const doorCenterY = topY + HOUSE_H / 2;
-
-  // mailbox sits right beside the front door (not at the curb), so reaching
-  // it means crossing the whole yard past the dog's territory
   const mailbox = {
-    x: side === 'left' ? houseX + houseW + 16 : houseX - 16,
-    y: doorCenterY + 24,
-    delivered: false, r: 16,
+    x: lotX + lot.mailbox.x,
+    y: topY + lot.mailbox.y,
+    delivered: false, r: 18,
     style: MAILBOX_STYLES[index % MAILBOX_STYLES.length],
   };
 
-  // porch center = where sentry/pace dogs anchor, with a buffer from the
-  // door/mailbox so the dog isn't standing directly on top of them
-  const porchX = side === 'left' ? yardX + 58 : yardX + yardW - 58;
-  const facingAngle = side === 'left' ? 0 : Math.PI;
+  // the open ground in front of the house, where the dog roams and the
+  // player has to pick a route through the decor
+  const yardRect = {
+    x: lotX + 8,
+    y: wallRect.y + wallRect.h - topY > 0 ? wallRect.y + wallRect.h : topY,
+    w: lot.w - 16,
+    h: 0,
+  };
+  yardRect.h = (topY + lot.sidewalkY) - yardRect.y - 6;
 
-  // maze-like stepping-stone path from the street edge to the door/mailbox:
-  // a zigzag of straight legs with sharp right-angle-ish turns rather than
-  // a smooth curve, so the route reads as something to actually navigate
-  const pathEntry = { x: side === 'left' ? yardX + yardW - 10 : yardX + 10, y: topY + HOUSE_H * (0.2 + Math.random() * 0.6) };
-  const pathEnd = { x: mailbox.x + (side === 'left' ? -10 : 10), y: mailbox.y };
-  const turnX = pathEntry.x + (pathEnd.x - pathEntry.x) * (0.3 + Math.random() * 0.2);
-  const turnY = pathEntry.y + (pathEnd.y - pathEntry.y) * (0.55 + Math.random() * 0.25);
-  const pathWaypoints = [
-    pathEntry,
-    { x: turnX, y: pathEntry.y },
-    { x: turnX, y: turnY },
-    { x: pathEnd.x, y: turnY },
-    pathEnd,
-  ];
-  const pathStones = stonesAlongPath(pathWaypoints, 15);
-
-  const theme = YARD_THEMES[index % YARD_THEMES.length];
-
-  // Everything below (bushes, trees, flower beds, rocks, props) is placed
-  // via rejection sampling against everything placed so far (plus the path
-  // and mailbox), so the yard reads as a handful of deliberate little
-  // clusters instead of decor scattered on top of itself everywhere.
-  const placedSpots = [{ x: mailbox.x, y: mailbox.y, r: 32 }, { x: porchX, y: doorCenterY, r: 28 }];
-  for (const s of pathStones) placedSpots.push({ x: s.x, y: s.y, r: 15 });
-
-  // tries a handful of random candidates in the yard and keeps whichever
-  // clears existing decor/path/mailbox by the most room
-  function placeDecor(minR, marginX = 18, marginY = 18, tries = 12) {
-    let best = null, bestScore = -Infinity;
-    for (let i = 0; i < tries; i++) {
-      const cand = {
-        x: clamp(yardX + marginX + Math.random() * (yardW - marginX * 2), yardX + 4, yardX + yardW - 4),
-        y: clamp(topY + marginY + Math.random() * (HOUSE_H - marginY * 2), topY + 4, topY + HOUSE_H - 4),
-      };
-      let clearance = Infinity;
-      for (const s of placedSpots) clearance = Math.min(clearance, dist(cand.x, cand.y, s.x, s.y) - s.r);
-      if (clearance > bestScore) { bestScore = clearance; best = cand; }
-      if (clearance >= minR) break;
-    }
-    placedSpots.push({ x: best.x, y: best.y, r: minR });
-    return best;
-  }
-
-  // bushes: small obstacles that also block dog line-of-sight
-  const bushes = [];
-  const bushCount = Math.random() < cfg.bushChance ? (Math.random() < 0.4 ? 2 : 1) : 0;
-  for (let b = 0; b < bushCount; b++) {
-    const bw = 34, bh = 28;
-    const p = placeDecor(Math.max(bw, bh) / 2 + 10, 20, 30);
-    bushes.push({ x: p.x - bw / 2, y: p.y - bh / 2, w: bw, h: bh });
-  }
-
-  // decorative dressing (purely visual, no collision): trees, flower beds,
-  // rocks, and a street lamp near the curb -- density/mix varies by theme
-  // so each yard reads as its own distinct little setup
-  const trees = [], flowerBeds = [], rocks = [];
-  const treeCount = theme === 'wooded' ? 2 : theme === 'minimal' ? 0 : 1;
-  const flowerCount = theme === 'garden' ? 2 : theme === 'ornamental' || theme === 'wooded' ? 1 : 0;
-  const rockCount = theme === 'minimal' ? 1 : theme === 'wooded' ? 2 : 1;
-
-  for (let t = 0; t < treeCount; t++) {
-    const treeR = 16 + Math.random() * 8;
-    const p = placeDecor(treeR + 16, 24, 28);
-    const kind = theme === 'ornamental' && Math.random() < 0.4 ? 'blossom' : (Math.random() < 0.5 ? 'pine' : 'round');
-    trees.push({ x: p.x, y: p.y, r: treeR, kind });
-  }
-  for (let f = 0; f < flowerCount; f++) {
-    const fw = 20 + Math.random() * 14, fh = 14 + Math.random() * 8;
-    const p = placeDecor(Math.max(fw, fh) / 2 + 12, 16, 16);
-    flowerBeds.push({ x: p.x, y: p.y, w: fw, h: fh, dense: theme === 'garden' });
-  }
-  for (let r = 0; r < rockCount; r++) {
-    const rockR = 4 + Math.random() * 4;
-    const p = placeDecor(rockR + 14, 12, 12);
-    rocks.push({ x: p.x, y: p.y, r: rockR });
-  }
-  // lamp post stands on the sidewalk (the street's outer margin), not in the yard
-  const lamp = { x: side === 'left' ? streetX0 + 12 : streetX0 + STREET_W - 12, y: topY + HOUSE_H - 20 };
-
-  // curated yard props (bench / fountain / gnome) -- a light sprinkle tied
-  // to the theme, not a prop on every lawn
-  const props = [];
-  if (theme === 'garden') {
-    const p1 = placeDecor(28, 20, 20);
-    props.push({ kind: 'fountain', x: p1.x, y: p1.y });
-  } else if (theme === 'ornamental') {
-    const p1 = placeDecor(18, 16, 16);
-    props.push({ kind: 'gnome', x: p1.x, y: p1.y });
-  } else if (theme === 'wooded' && Math.random() < 0.6) {
-    const p1 = placeDecor(24, 20, 20);
-    props.push({ kind: 'bench', x: p1.x, y: p1.y, rot: Math.random() < 0.5 ? 0 : Math.PI / 2 });
-  }
-
-  // grass tufts: small static texture marks scattered in the yard
-  const grassTufts = [];
-  const tuftCount = 26;
-  for (let g = 0; g < tuftCount; g++) {
-    grassTufts.push({
-      x: yardX + 6 + Math.random() * (yardW - 12),
-      y: topY + 6 + Math.random() * (HOUSE_H - 12),
-      rot: Math.random() * Math.PI,
-      shade: Math.random() < 0.5 ? 'light' : 'dark',
-    });
-  }
-
-  // dogs
-  const breedKeys = cfg.breeds;
-  const dogCount = index < cfg.doubleDogHouses ? 2 : 1;
   const dogs = [];
+  const dogCount = index < cfg.doubleDogHouses ? 2 : 1;
   for (let d = 0; d < dogCount; d++) {
-    const breedKey = breedKeys[Math.floor(Math.random() * breedKeys.length)];
+    const breedKey = cfg.breeds[Math.floor(Math.random() * cfg.breeds.length)];
     const breed = BREEDS[breedKey];
-    const anchorY = topY + HOUSE_H * (dogCount === 1 ? 0.5 : (d === 0 ? 0.32 : 0.72));
-    const dog = {
+    // start clear of the decor, or the dog would begin its patrol wedged
+    // inside a solid it can never step out of
+    const dogR = 12 * breed.size;
+    let sx = clamp(lotX + lot.dogSpawn.x + (d === 0 ? 0 : 70), yardRect.x + 20, yardRect.x + yardRect.w - 20);
+    let sy = clamp(topY + lot.dogSpawn.y, yardRect.y + 20, yardRect.y + yardRect.h - 20);
+    for (let attempt = 0; attempt < 24 && solids.some((s) => circleRectOverlap(sx, sy, dogR, s)); attempt++) {
+      sx = yardRect.x + 20 + Math.random() * (yardRect.w - 40);
+      sy = yardRect.y + 20 + Math.random() * (yardRect.h - 40);
+    }
+    dogs.push({
       breedKey, breed,
-      x: porchX,
-      y: anchorY,
-      angle: facingAngle,
-      baseAngle: facingAngle,
-      side,
+      x: sx,
+      y: sy,
+      angle: Math.PI / 2,
+      baseAngle: Math.PI / 2,
       suspicion: 0,
       state: 'awake',
       sleepTimer: breed.behavior === 'sleepy' ? 2 + Math.random() * 2 : 0,
@@ -591,73 +512,10 @@ function makeHouse(side, topY, cfg, index, corridorBaseX) {
       seen: false,
       animTimer: Math.random() * 0.18,
       animFrame: Math.random() < 0.5 ? 0 : 1,
-    };
-    dogs.push(dog);
+    });
   }
 
-  return {
-    side, topY, wallRect, yardRect, mailbox, bushes, dogs, index,
-    palette, hasChimney, flowerWindow, doorX, grassTufts,
-    theme, trees, flowerBeds, rocks, lamp, pathStones, props,
-  };
-}
-
-// Fills a leftover (row, corridor) slot that has no house with a small
-// public park -- purely decorative dressing (no mailbox, no dogs, no
-// collision) so the neighborhood grid never has a dead, half-finished lot.
-function makePark(side, topY, corridorBaseX) {
-  const houseW = HOUSE_W, yardW = YARD_W;
-  const streetX0 = corridorBaseX + houseW + yardW;
-  const lotX = side === 'left' ? streetX0 - (houseW + yardW) : streetX0 + STREET_W;
-  const rect = { x: lotX, y: topY, w: houseW + yardW, h: HOUSE_H };
-
-  const placedSpots = [];
-  function place(minR, marginX = 20, marginY = 20, tries = 12) {
-    let best = null, bestScore = -Infinity;
-    for (let i = 0; i < tries; i++) {
-      const cand = {
-        x: clamp(rect.x + marginX + Math.random() * (rect.w - marginX * 2), rect.x + 4, rect.x + rect.w - 4),
-        y: clamp(rect.y + marginY + Math.random() * (rect.h - marginY * 2), rect.y + 4, rect.y + rect.h - 4),
-      };
-      let clearance = Infinity;
-      for (const s of placedSpots) clearance = Math.min(clearance, dist(cand.x, cand.y, s.x, s.y) - s.r);
-      if (clearance > bestScore) { bestScore = clearance; best = cand; }
-      if (clearance >= minR) break;
-    }
-    placedSpots.push({ x: best.x, y: best.y, r: minR });
-    return best;
-  }
-
-  const pondSpot = place(22, 30, 30);
-  const trees = [];
-  const treeCount = 4 + Math.floor(Math.random() * 3);
-  for (let t = 0; t < treeCount; t++) {
-    const r = 14 + Math.random() * 10;
-    const p = place(r + 14, 20, 24);
-    const kind = Math.random() < 0.2 ? 'blossom' : (Math.random() < 0.5 ? 'pine' : 'round');
-    trees.push({ x: p.x, y: p.y, r, kind });
-  }
-  const benches = [];
-  const benchCount = 1 + Math.floor(Math.random() * 2);
-  for (let b = 0; b < benchCount; b++) {
-    const p = place(24, 20, 20);
-    benches.push({ kind: 'bench', x: p.x, y: p.y, rot: Math.random() < 0.5 ? 0 : Math.PI / 2 });
-  }
-
-  // a low hedge ring frames the lot as its own little plot, distinct from
-  // a deliverable yard -- decorative only, it doesn't block movement
-  const hedge = [];
-  const step = 30;
-  for (let x = rect.x + 12; x < rect.x + rect.w - 12; x += step) {
-    hedge.push({ x, y: rect.y + 6, w: step - 6, h: 16 });
-    hedge.push({ x, y: rect.y + rect.h - 22, w: step - 6, h: 16 });
-  }
-  for (let y = rect.y + 12; y < rect.y + rect.h - 12; y += step) {
-    hedge.push({ x: rect.x + 2, y, w: 16, h: step - 6 });
-    hedge.push({ x: rect.x + rect.w - 18, y, w: 16, h: step - 6 });
-  }
-
-  return { rect, pond: { kind: 'fountain', x: pondSpot.x, y: pondSpot.y }, trees, benches, hedge };
+  return { index, lot, rect, wallRect, yardRect, solids, bushes, mailbox, dogs };
 }
 
 /* ---------- Level flow ---------- */
@@ -770,8 +628,10 @@ function updatePlayer(dt) {
     // collide vs house walls only (yards, street, sidewalks are all walkable)
     let blockedX = false, blockedY = false;
     for (const h of w.houses) {
-      if (circleRectOverlap(nx, p.y, p.r, h.wallRect)) blockedX = true;
-      if (circleRectOverlap(p.x, ny, p.r, h.wallRect)) blockedY = true;
+      for (const s of h.solids) {
+        if (circleRectOverlap(nx, p.y, p.r, s)) blockedX = true;
+        if (circleRectOverlap(p.x, ny, p.r, s)) blockedY = true;
+      }
     }
     p.x = blockedX ? p.x : clamp(nx, p.r, w.worldW - p.r);
     p.y = blockedY ? p.y : clamp(ny, p.r, w.worldH - p.r);
@@ -831,8 +691,17 @@ function updateDog(dog, house, dt, w) {
     dog.angle = dog.baseAngle + Math.sin(dog.sweepT) * 0.6;
     dog.wanderTimer -= dt;
     if (dog.wanderTimer <= 0) {
-      dog.wanderX = yr.x + margin + Math.random() * (yr.w - margin * 2);
-      dog.wanderY = yr.y + margin + Math.random() * (yr.h - margin * 2);
+      // aim for a spot that isn't inside a tree/bench/fountain, so the dog
+      // doesn't spend its patrol shoving against a solid it can't enter
+      const dogR = 12 * breed.size;
+      let tx = 0, ty = 0;
+      for (let attempt = 0; attempt < 8; attempt++) {
+        tx = yr.x + margin + Math.random() * (yr.w - margin * 2);
+        ty = yr.y + margin + Math.random() * (yr.h - margin * 2);
+        if (!house.solids.some((s) => circleRectOverlap(tx, ty, dogR, s))) break;
+      }
+      dog.wanderX = tx;
+      dog.wanderY = ty;
       dog.wanderPhase = 'moving';
       dog.wanderTimer = 5 + Math.random() * 3; // failsafe: give up and re-pause if travel takes too long
     }
@@ -842,8 +711,16 @@ function updateDog(dog, house, dt, w) {
     dog.wanderTimer -= dt;
     if (d > 4 && dog.wanderTimer > 0) {
       const speedMul = breed.behavior === 'sentry' ? 0.55 : breed.behavior === 'erratic' ? 1.0 : 0.75;
-      dog.x += (dx / d) * breed.speed * speedMul * dt;
-      dog.y += (dy / d) * breed.speed * speedMul * dt;
+      const dogR = 12 * breed.size;
+      const step = breed.speed * speedMul * dt;
+      const nx = dog.x + (dx / d) * step;
+      const ny = dog.y + (dy / d) * step;
+      // slide along obstacles per-axis rather than walking through them
+      const blockedX = house.solids.some((s) => circleRectOverlap(nx, dog.y, dogR, s));
+      const blockedY = house.solids.some((s) => circleRectOverlap(dog.x, ny, dogR, s));
+      if (!blockedX) dog.x = nx;
+      if (!blockedY) dog.y = ny;
+      if (blockedX && blockedY) dog.wanderTimer = 0; // fully stuck: pick a new target
       dog.angle = Math.atan2(dy, dx);
     } else {
       dog.wanderPhase = 'paused';
@@ -1017,20 +894,17 @@ function draw() {
   ctx.translate(-state.camX + shakeX, -state.camY + shakeY);
 
   drawBackground(w);
-  for (const t of w.decor.gapTrees) drawTree(t);
-  for (const h of w.houses) drawYard(h);
-  for (const pk of w.parks) drawPark(pk);
   drawRoad(w);
-  for (const h of w.houses) drawLamp(h.lamp);
-  for (const h of w.houses) drawHouse(h);
-  for (const h of w.houses) for (const b of h.bushes) drawBush(b);
-  for (const h of w.houses) drawMailbox(h.mailbox, h.side);
+  for (const h of w.houses) drawLot(h);
+  for (const h of w.houses) drawMailbox(h.mailbox);
 
   // vision cones on top of scenery, under the characters
   for (const h of w.houses) for (const dog of h.dogs) drawVisionCone(dog);
 
   drawPlayer(w.player);
   for (const h of w.houses) for (const dog of h.dogs) drawDog(dog);
+
+  if (state.showCollision) drawCollisionDebug(w);
 
   ctx.restore();
 
@@ -1041,7 +915,7 @@ function drawBackground(w) {
   ctx.fillStyle = '#4f8a4b';
   ctx.fillRect(0, 0, w.worldW, w.worldH);
   // sky strip above the first row, with a soft gradient and drifting clouds
-  const skyH = 130;
+  const skyH = SKY_H;
   const sky = ctx.createLinearGradient(0, 0, 0, skyH);
   sky.addColorStop(0, '#8fd0e8');
   sky.addColorStop(1, '#4f8a4b');
@@ -1055,246 +929,61 @@ function drawBackground(w) {
     ctx.ellipse(c.x - 18 * c.s, c.y + 5 * c.s, 16 * c.s, 9 * c.s, 0, 0, Math.PI * 2);
     ctx.fill();
   }
-}
 
-// Rounded, slightly overlapping cobbles with a soft shadow/highlight and a
-// faint moss fleck -- reads as a proper stepping-stone path, not UI chips.
-function drawPathStones(stones) {
-  for (const s of stones) {
-    ctx.fillStyle = 'rgba(0,0,0,0.16)';
-    ctx.beginPath(); ctx.ellipse(s.x + 1.5, s.y + 2.5, s.r, s.r * 0.66, s.rot, 0, Math.PI * 2); ctx.fill();
-    const grad = ctx.createRadialGradient(s.x - s.r * 0.3, s.y - s.r * 0.3, 1, s.x, s.y, s.r * 1.2);
-    grad.addColorStop(0, '#ddd5c1');
-    grad.addColorStop(0.6, '#c7bfa9');
-    grad.addColorStop(1, '#a49a83');
+  // Lots vary in width, so the grass verge beside a narrow one would read as
+  // a dead void. A hedgerow down both outer edges plus scattered tufts frames
+  // the route and makes that margin look like the neighbours' back hedges.
+  for (const v of w.decor.verge) {
+    const grad = ctx.createRadialGradient(v.x - v.r * 0.3, v.y - v.r * 0.3, 1, v.x, v.y, v.r * 1.1);
+    grad.addColorStop(0, v.light);
+    grad.addColorStop(1, v.dark);
     ctx.fillStyle = grad;
-    ctx.beginPath(); ctx.ellipse(s.x, s.y, s.r, s.r * 0.74, s.rot, 0, Math.PI * 2); ctx.fill();
-    ctx.strokeStyle = 'rgba(120,110,90,0.35)';
-    ctx.lineWidth = 1;
-    ctx.beginPath(); ctx.ellipse(s.x, s.y, s.r, s.r * 0.74, s.rot, 0, Math.PI * 2); ctx.stroke();
-    if (s.moss) {
-      ctx.fillStyle = 'rgba(90,140,70,0.35)';
-      ctx.beginPath(); ctx.ellipse(s.x - s.r * 0.3, s.y + s.r * 0.15, s.r * 0.35, s.r * 0.2, s.rot, 0, Math.PI * 2); ctx.fill();
-    }
-  }
-}
-
-// A loose scattered cluster of small blooms over dark soil, with a few
-// leaf sprigs, rather than a tidy ring of dots.
-function drawFlowerBed(f) {
-  ctx.fillStyle = 'rgba(0,0,0,0.12)';
-  ctx.beginPath(); ctx.ellipse(f.x + 1, f.y + 2, f.w / 2, f.h / 2, 0, 0, Math.PI * 2); ctx.fill();
-  const soil = ctx.createRadialGradient(f.x, f.y, 1, f.x, f.y, Math.max(f.w, f.h) / 2);
-  soil.addColorStop(0, '#4a3626');
-  soil.addColorStop(1, '#2e2015');
-  ctx.fillStyle = soil;
-  ctx.beginPath(); ctx.ellipse(f.x, f.y, f.w / 2, f.h / 2, 0, 0, Math.PI * 2); ctx.fill();
-  const colors = ['#e0556a', '#f0c93a', '#e88ac9', '#f4f4f4', '#8a6ad1', '#f0925a'];
-  const n = f.dense ? 10 : 7;
-  for (let i = 0; i < n; i++) {
-    const a = (i / n) * Math.PI * 2 + (i % 2) * 0.35;
-    const rad = 0.2 + (i % 3) * 0.28;
-    const fx = f.x + Math.cos(a) * f.w * rad, fy = f.y + Math.sin(a) * f.h * rad;
-    if (i % 3 === 0) {
-      ctx.strokeStyle = '#3f7a3d';
-      ctx.lineWidth = 1.2;
-      ctx.beginPath(); ctx.moveTo(fx, fy + 3); ctx.lineTo(fx, fy - 1); ctx.stroke();
-    }
-    ctx.fillStyle = colors[i % colors.length];
-    ctx.beginPath(); ctx.arc(fx, fy, 2.6, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = 'rgba(255,255,255,0.5)';
-    ctx.beginPath(); ctx.arc(fx - 0.7, fy - 0.7, 0.9, 0, Math.PI * 2); ctx.fill();
-  }
-}
-
-function drawRock(r) {
-  ctx.fillStyle = 'rgba(0,0,0,0.16)';
-  ctx.beginPath(); ctx.ellipse(r.x + 1.5, r.y + 2, r.r, r.r * 0.6, 0, 0, Math.PI * 2); ctx.fill();
-  const grad = ctx.createRadialGradient(r.x - r.r * 0.35, r.y - r.r * 0.4, 1, r.x, r.y, r.r * 1.1);
-  grad.addColorStop(0, '#a9aeb3');
-  grad.addColorStop(0.55, '#8a8f94');
-  grad.addColorStop(1, '#5f6469');
-  ctx.fillStyle = grad;
-  ctx.beginPath(); ctx.ellipse(r.x, r.y, r.r, r.r * 0.78, 0, 0, Math.PI * 2); ctx.fill();
-  ctx.strokeStyle = 'rgba(0,0,0,0.18)';
-  ctx.lineWidth = 1;
-  ctx.beginPath(); ctx.moveTo(r.x - r.r * 0.4, r.y + r.r * 0.1); ctx.lineTo(r.x + r.r * 0.3, r.y - r.r * 0.15); ctx.stroke();
-}
-
-function drawTree(t) {
-  ctx.fillStyle = 'rgba(0,0,0,0.2)';
-  ctx.beginPath(); ctx.ellipse(t.x + 2, t.y + t.r * 0.55, t.r * 0.9, t.r * 0.4, 0, 0, Math.PI * 2); ctx.fill();
-  ctx.fillStyle = '#6b4a2e';
-  ctx.fillRect(t.x - 3, t.y - 4, 6, t.r * 0.5);
-  ctx.fillStyle = 'rgba(0,0,0,0.2)';
-  ctx.fillRect(t.x - 3, t.y - 4, 2, t.r * 0.5);
-  if (t.kind === 'pine') {
-    for (let i = 0; i < 3; i++) {
-      const tw = t.r * (1 - i * 0.22);
-      const ty = t.y - i * t.r * 0.5;
-      const grad = ctx.createLinearGradient(t.x - tw, ty, t.x + tw, ty);
-      grad.addColorStop(0, '#254f2c');
-      grad.addColorStop(0.5, '#3d8144');
-      grad.addColorStop(1, '#2a5c30');
-      ctx.fillStyle = grad;
-      ctx.beginPath();
-      ctx.moveTo(t.x, ty - t.r * 0.7);
-      ctx.lineTo(t.x - tw, ty + t.r * 0.15);
-      ctx.lineTo(t.x + tw, ty + t.r * 0.15);
-      ctx.closePath();
-      ctx.fill();
-    }
-  } else if (t.kind === 'blossom') {
-    const grad = ctx.createRadialGradient(t.x - t.r * 0.3, t.y - t.r * 0.6, 2, t.x, t.y - t.r * 0.3, t.r * 1.1);
-    grad.addColorStop(0, '#ffd4e8');
-    grad.addColorStop(0.55, '#f2a3c8');
-    grad.addColorStop(1, '#c76fa0');
-    ctx.fillStyle = grad;
-    ctx.beginPath(); ctx.arc(t.x, t.y - t.r * 0.3, t.r, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = 'rgba(255,255,255,0.75)';
-    for (let i = 0; i < 5; i++) {
-      const a = Math.random() * Math.PI * 2, rr = Math.random() * t.r * 0.75;
-      ctx.beginPath(); ctx.arc(t.x + Math.cos(a) * rr, t.y - t.r * 0.3 + Math.sin(a) * rr, 1.3, 0, Math.PI * 2); ctx.fill();
-    }
-  } else {
-    const grad = ctx.createRadialGradient(t.x - t.r * 0.3, t.y - t.r * 0.6, 2, t.x, t.y - t.r * 0.3, t.r * 1.1);
-    grad.addColorStop(0, '#6fbf5f');
-    grad.addColorStop(1, '#3a7a3a');
-    ctx.fillStyle = grad;
-    ctx.beginPath(); ctx.arc(t.x, t.y - t.r * 0.3, t.r, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = 'rgba(0,0,0,0.12)';
-    ctx.beginPath(); ctx.arc(t.x + t.r * 0.35, t.y - t.r * 0.15, t.r * 0.55, 0, Math.PI * 2); ctx.fill();
-  }
-}
-
-function drawLamp(l) {
-  ctx.fillStyle = 'rgba(0,0,0,0.15)';
-  ctx.beginPath(); ctx.ellipse(l.x, l.y + 14, 6, 2.4, 0, 0, Math.PI * 2); ctx.fill();
-  const postGrad = ctx.createLinearGradient(l.x - 2, 0, l.x + 2, 0);
-  postGrad.addColorStop(0, '#54545a');
-  postGrad.addColorStop(1, '#26262a');
-  ctx.fillStyle = postGrad;
-  ctx.fillRect(l.x - 2, l.y - 24, 4, 38);
-  ctx.fillStyle = '#2a2a2e';
-  ctx.beginPath(); ctx.arc(l.x, l.y + 14, 4, 0, Math.PI * 2); ctx.fill();
-  const glow = ctx.createRadialGradient(l.x, l.y - 28, 0, l.x, l.y - 28, 15);
-  glow.addColorStop(0, 'rgba(255,230,150,0.55)');
-  glow.addColorStop(1, 'rgba(255,230,150,0)');
-  ctx.fillStyle = glow;
-  ctx.beginPath(); ctx.arc(l.x, l.y - 28, 15, 0, Math.PI * 2); ctx.fill();
-  ctx.fillStyle = '#2a2a2e';
-  ctx.fillRect(l.x - 7, l.y - 34, 14, 3);
-  const lampGrad = ctx.createLinearGradient(l.x - 5, 0, l.x + 5, 0);
-  lampGrad.addColorStop(0, '#fff2c0');
-  lampGrad.addColorStop(1, '#f0d060');
-  ctx.fillStyle = lampGrad;
-  ctx.beginPath(); ctx.ellipse(l.x, l.y - 28, 5, 6, 0, 0, Math.PI * 2); ctx.fill();
-  ctx.fillStyle = '#2a2a2e';
-  ctx.beginPath();
-  ctx.moveTo(l.x - 6, l.y - 34); ctx.lineTo(l.x + 6, l.y - 34); ctx.lineTo(l.x, l.y - 40);
-  ctx.closePath(); ctx.fill();
-}
-
-// Curated yard props (bench / fountain / gnome), sprinkled per yard theme.
-function drawProp(p) {
-  if (p.kind === 'bench') {
-    ctx.save();
-    ctx.translate(p.x, p.y);
-    if (p.rot) ctx.rotate(p.rot);
-    ctx.fillStyle = 'rgba(0,0,0,0.18)';
-    ctx.beginPath(); ctx.ellipse(1, 9, 16, 5, 0, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = '#3a2a1c';
-    ctx.fillRect(-14, -2, 4, 10); ctx.fillRect(10, -2, 4, 10);
-    const seatGrad = ctx.createLinearGradient(0, -6, 0, 2);
-    seatGrad.addColorStop(0, '#9c7248'); seatGrad.addColorStop(1, '#7a5836');
-    ctx.fillStyle = seatGrad;
-    ctx.fillRect(-16, -6, 32, 6);
-    ctx.fillStyle = '#8a6640';
-    ctx.fillRect(-16, -16, 32, 5);
-    for (let i = -14; i < 16; i += 6) { ctx.fillStyle = 'rgba(0,0,0,0.15)'; ctx.fillRect(i, -6, 1.4, 6); }
-    ctx.restore();
-  } else if (p.kind === 'fountain') {
-    ctx.fillStyle = 'rgba(0,0,0,0.18)';
-    ctx.beginPath(); ctx.ellipse(p.x + 1, p.y + 13, 17, 6, 0, 0, Math.PI * 2); ctx.fill();
-    const rim = ctx.createRadialGradient(p.x, p.y, 4, p.x, p.y, 18);
-    rim.addColorStop(0, '#cfc9ba'); rim.addColorStop(1, '#a39c8a');
-    ctx.fillStyle = rim;
-    ctx.beginPath(); ctx.ellipse(p.x, p.y, 18, 12, 0, 0, Math.PI * 2); ctx.fill();
-    const water = ctx.createRadialGradient(p.x, p.y - 1, 1, p.x, p.y, 13);
-    water.addColorStop(0, '#bfe8f2'); water.addColorStop(1, '#5fa8c2');
-    ctx.fillStyle = water;
-    ctx.beginPath(); ctx.ellipse(p.x, p.y, 13, 8, 0, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = '#cfc9ba';
-    ctx.beginPath(); ctx.ellipse(p.x, p.y - 6, 4, 3, 0, 0, Math.PI * 2); ctx.fill();
-    ctx.strokeStyle = 'rgba(255,255,255,0.6)';
-    ctx.lineWidth = 1.2;
-    for (let i = 0; i < 3; i++) {
-      ctx.beginPath();
-      ctx.moveTo(p.x, p.y - 6);
-      ctx.lineTo(p.x + (i - 1) * 4, p.y - 1);
-      ctx.stroke();
-    }
-  } else if (p.kind === 'gnome') {
-    ctx.fillStyle = 'rgba(0,0,0,0.18)';
-    ctx.beginPath(); ctx.ellipse(p.x, p.y + 9, 6, 2.4, 0, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = '#2f5ea8';
-    ctx.fillRect(p.x - 4, p.y - 4, 8, 10);
-    ctx.fillStyle = '#e8c9a0';
-    ctx.beginPath(); ctx.arc(p.x, p.y - 7, 4, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = '#f4f4f4';
-    ctx.beginPath(); ctx.ellipse(p.x, p.y - 4, 3.4, 2.2, 0, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = '#c94040';
     ctx.beginPath();
-    ctx.moveTo(p.x - 5, p.y - 9); ctx.lineTo(p.x + 5, p.y - 9); ctx.lineTo(p.x, p.y - 18);
-    ctx.closePath(); ctx.fill();
+    ctx.ellipse(v.x, v.y, v.r, v.r * 0.82, 0, 0, Math.PI * 2);
+    ctx.fill();
   }
-}
-
-function drawYard(h) {
-  const yr = h.yardRect;
-  // mowed-stripe texture
-  ctx.fillStyle = '#5fa85a';
-  ctx.fillRect(yr.x, yr.y, yr.w, yr.h);
-  ctx.fillStyle = 'rgba(255,255,255,0.05)';
-  const stripeW = 22;
-  for (let sx = yr.x - (yr.x % stripeW); sx < yr.x + yr.w; sx += stripeW * 2) {
-    ctx.fillRect(Math.max(sx, yr.x), yr.y, Math.min(stripeW, yr.x + yr.w - sx), yr.h);
-  }
-  // grass tufts
-  for (const t of h.grassTufts) {
-    ctx.strokeStyle = t.shade === 'light' ? 'rgba(255,255,255,0.22)' : 'rgba(0,0,0,0.12)';
-    ctx.lineWidth = 1.4;
+  ctx.strokeStyle = 'rgba(255,255,255,0.16)';
+  ctx.lineWidth = 1.3;
+  for (const t of w.decor.tufts) {
     ctx.beginPath();
     ctx.moveTo(t.x, t.y);
     ctx.lineTo(t.x + Math.cos(t.rot) * 5, t.y + Math.sin(t.rot) * 5 - 3);
     ctx.stroke();
   }
-  // maze-like stepping-stone path from the street to the door/mailbox, then
-  // yard dressing -- the mix varies per house's theme for a distinct look
-  drawPathStones(h.pathStones);
-  for (const r of h.rocks) drawRock(r);
-  for (const f of h.flowerBeds) drawFlowerBed(f);
-  for (const t of h.trees) drawTree(t);
-  for (const p of h.props) drawProp(p);
 }
 
-function drawPark(pk) {
-  const r = pk.rect;
-  ctx.fillStyle = '#5aa855';
-  ctx.fillRect(r.x, r.y, r.w, r.h);
-  ctx.fillStyle = 'rgba(255,255,255,0.05)';
-  const stripeW = 22;
-  for (let sx = r.x - (r.x % stripeW); sx < r.x + r.w; sx += stripeW * 2) {
-    ctx.fillRect(Math.max(sx, r.x), r.y, Math.min(stripeW, r.x + r.w - sx), r.h);
+// One lot = one hand-drawn scene image. Everything in it (house, trees,
+// benches, fountain, its own stone path and sidewalk) is baked into the art;
+// the matching collision rectangles live in LOT_TYPES.
+function drawLot(h) {
+  const img = IMAGES[`lots.${h.lot.key}`];
+  const r = h.rect;
+  if (img && img.complete && img.naturalHeight) {
+    ctx.drawImage(img, r.x, r.y, r.w, r.h);
+  } else {
+    ctx.fillStyle = '#5fa85a';
+    ctx.fillRect(r.x, r.y, r.w, r.h);
   }
-  for (const seg of pk.hedge) drawBush(seg);
-  drawProp(pk.pond);
-  for (const t of pk.trees) drawTree(t);
-  for (const b of pk.benches) drawProp(b);
 }
 
-// Sidewalk paver texture: a grid of joint lines rather than sparse ticks,
-// so the concrete reads as individual slabs like the reference neighborhood.
+// Toggled with the C key -- overlays the authored obstacle rectangles so
+// mismatches between the art and its collision can be spotted directly.
+function drawCollisionDebug(w) {
+  for (const h of w.houses) {
+    for (const s of h.solids) {
+      ctx.fillStyle = s.sight ? 'rgba(0,255,0,0.25)' : 'rgba(0,120,255,0.25)';
+      ctx.fillRect(s.x, s.y, s.w, s.h);
+      ctx.strokeStyle = s.sight ? '#0f0' : '#08f';
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(s.x, s.y, s.w, s.h);
+    }
+    const y = h.yardRect;
+    ctx.strokeStyle = '#ff0';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(y.x, y.y, y.w, y.h);
+  }
+}
+
 function drawSidewalkPavers(x0, y0, w, h, vertical) {
   ctx.strokeStyle = 'rgba(120,112,96,0.4)';
   ctx.lineWidth = 1;
@@ -1310,29 +999,6 @@ function drawSidewalkPavers(x0, y0, w, h, vertical) {
     }
     ctx.beginPath(); ctx.moveTo(x0, y0 + h / 2); ctx.lineTo(x0 + w, y0 + h / 2); ctx.stroke();
   }
-}
-
-function drawVerticalStreet(streetX0, worldH) {
-  const x0 = streetX0, x1 = streetX0 + STREET_W;
-  ctx.fillStyle = '#bdb6a2';
-  ctx.fillRect(x0, 0, STREET_W, worldH);
-  drawSidewalkPavers(x0, 0, 30, worldH, true);
-  drawSidewalkPavers(x1 - 30, 0, 30, worldH, true);
-  const asphalt = ctx.createLinearGradient(x0 + 30, 0, x1 - 30, 0);
-  asphalt.addColorStop(0, '#494c4f');
-  asphalt.addColorStop(0.5, '#5a5e62');
-  asphalt.addColorStop(1, '#494c4f');
-  ctx.fillStyle = asphalt;
-  ctx.fillRect(x0 + 30, 0, STREET_W - 60, worldH);
-  ctx.strokeStyle = 'rgba(0,0,0,0.35)';
-  ctx.lineWidth = 2;
-  ctx.beginPath(); ctx.moveTo(x0 + 30, 0); ctx.lineTo(x0 + 30, worldH); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(x1 - 30, 0); ctx.lineTo(x1 - 30, worldH); ctx.stroke();
-  ctx.strokeStyle = '#ecc94a';
-  ctx.lineWidth = 3;
-  ctx.setLineDash([16, 12]);
-  ctx.beginPath(); ctx.moveTo(x0 + STREET_W / 2, 0); ctx.lineTo(x0 + STREET_W / 2, worldH); ctx.stroke();
-  ctx.setLineDash([]);
 }
 
 function drawHorizontalStreet(streetY0, worldW) {
@@ -1359,9 +1025,6 @@ function drawHorizontalStreet(streetY0, worldW) {
 }
 
 function drawRoad(w) {
-  for (let c = 0; c < CORRIDOR_COUNT; c++) {
-    drawVerticalStreet(corridorX0(c) + HOUSE_W + YARD_W, w.worldH);
-  }
   for (const band of w.crossStreets) {
     drawHorizontalStreet(band.y0, w.worldW);
   }
@@ -1374,11 +1037,10 @@ function drawRoad(w) {
     ctx.fill();
   }
 
-  // a drain cover marks each real 4-way intersection
-  for (let c = 0; c < CORRIDOR_COUNT; c++) {
-    const cx = corridorX0(c) + HOUSE_W + YARD_W + STREET_W / 2;
-    for (const band of w.crossStreets) {
-      const cy = band.y0 + STREET_W / 2;
+  // a drain cover sits at each end of every street
+  for (const band of w.crossStreets) {
+    const cy = band.y0 + STREET_W / 2;
+    for (const cx of [70, w.worldW - 70]) {
       const grad = ctx.createRadialGradient(cx - 3, cy - 3, 1, cx, cy, 11);
       grad.addColorStop(0, '#7c7870');
       grad.addColorStop(1, '#3a3834');
@@ -1396,353 +1058,12 @@ function drawRoad(w) {
   }
 }
 
-// Lightens (positive amt) or darkens (negative amt) a "#rrggbb" color.
-function shadeColor(hex, amt) {
-  const num = parseInt(hex.slice(1), 16);
-  const r = Math.max(0, Math.min(255, (num >> 16) + amt));
-  const g = Math.max(0, Math.min(255, ((num >> 8) & 0xff) + amt));
-  const b = Math.max(0, Math.min(255, (num & 0xff) + amt));
-  return `rgb(${r},${g},${b})`;
-}
-
-function drawRoofGable(roofX0, roofX1, r, flip, pal) {
-  const ridgeX = (roofX0 + roofX1) / 2;
-  // two-tone slopes, each with its own subtle gradient (light-from-the-left)
-  // so the pitch reads clearly while still feeling painted, not flat-filled
-  const leftGrad = ctx.createLinearGradient(roofX0, 0, ridgeX, 0);
-  leftGrad.addColorStop(0, shadeColor(pal.roof, 40));
-  leftGrad.addColorStop(1, shadeColor(pal.roof, 14));
-  ctx.fillStyle = leftGrad;
-  ctx.fillRect(roofX0, r.y, ridgeX - roofX0, r.h);
-  const rightGrad = ctx.createLinearGradient(ridgeX, 0, roofX1, 0);
-  rightGrad.addColorStop(0, shadeColor(pal.roof, -14));
-  rightGrad.addColorStop(1, shadeColor(pal.roof, -34));
-  ctx.fillStyle = rightGrad;
-  ctx.fillRect(ridgeX, r.y, roofX1 - ridgeX, r.h);
-  // individual shingle course lines, offset row to row like real courses
-  ctx.strokeStyle = 'rgba(0,0,0,0.22)';
-  ctx.lineWidth = 1;
-  let rowFlip = false;
-  for (let ly = r.y + 6; ly < r.y + r.h - 3; ly += 6) {
-    ctx.beginPath();
-    ctx.moveTo(roofX0 + 2, ly); ctx.lineTo(roofX1 - 2, ly);
-    ctx.stroke();
-    for (let lx = roofX0 + (rowFlip ? 6 : 3); lx < roofX1 - 3; lx += 7) {
-      if (Math.abs(lx - ridgeX) < 2) continue;
-      ctx.beginPath(); ctx.moveTo(lx, ly); ctx.lineTo(lx, ly + 6); ctx.stroke();
-    }
-    rowFlip = !rowFlip;
-  }
-  // ridge cap + gutter line along the eaves
-  ctx.strokeStyle = 'rgba(255,255,255,0.5)';
-  ctx.lineWidth = 2.4;
-  ctx.beginPath();
-  ctx.moveTo(ridgeX, r.y + 2); ctx.lineTo(ridgeX, r.y + r.h - 2);
-  ctx.stroke();
-  ctx.strokeStyle = 'rgba(0,0,0,0.28)';
-  ctx.lineWidth = 1.4;
-  ctx.beginPath(); ctx.moveTo(roofX0 + 1, r.y + 1); ctx.lineTo(roofX0 + 1, r.y + r.h - 1); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(roofX1 - 1, r.y + 1); ctx.lineTo(roofX1 - 1, r.y + r.h - 1); ctx.stroke();
-}
-
-function drawRoofFlat(roofX0, roofX1, r, pal) {
-  const grad = ctx.createLinearGradient(roofX0, r.y, roofX1, r.y);
-  grad.addColorStop(0, shadeColor(pal.roof, 12));
-  grad.addColorStop(1, shadeColor(pal.roof, -10));
-  ctx.fillStyle = grad;
-  ctx.fillRect(roofX0, r.y, roofX1 - roofX0, r.h);
-  // gravel/tar texture speckle
-  ctx.fillStyle = 'rgba(255,255,255,0.1)';
-  for (let ly = r.y + 5; ly < r.y + r.h; ly += 7) {
-    for (let lx = roofX0 + 3; lx < roofX1 - 2; lx += 6) {
-      if ((lx + ly) % 3 === 0) ctx.fillRect(lx, ly, 2, 2);
-    }
-  }
-  // parapet edge with an inner shadow lip
-  ctx.strokeStyle = 'rgba(255,255,255,0.4)';
-  ctx.lineWidth = 2;
-  ctx.strokeRect(roofX0 + 1, r.y + 1, roofX1 - roofX0 - 2, r.h - 2);
-  ctx.strokeStyle = 'rgba(0,0,0,0.18)';
-  ctx.lineWidth = 1;
-  ctx.strokeRect(roofX0 + 4, r.y + 4, roofX1 - roofX0 - 8, r.h - 8);
-}
-
-function drawRoofTile(roofX0, roofX1, r, flip, pal) {
-  const ridgeX = (roofX0 + roofX1) / 2;
-  const leftGrad = ctx.createLinearGradient(roofX0, 0, ridgeX, 0);
-  leftGrad.addColorStop(0, shadeColor(pal.roof, 34));
-  leftGrad.addColorStop(1, shadeColor(pal.roof, 10));
-  ctx.fillStyle = leftGrad;
-  ctx.fillRect(roofX0, r.y, ridgeX - roofX0, r.h);
-  const rightGrad = ctx.createLinearGradient(ridgeX, 0, roofX1, 0);
-  rightGrad.addColorStop(0, shadeColor(pal.roof, -12));
-  rightGrad.addColorStop(1, shadeColor(pal.roof, -30));
-  ctx.fillStyle = rightGrad;
-  ctx.fillRect(ridgeX, r.y, roofX1 - ridgeX, r.h);
-  // terracotta scalloped tile rows -- individual barrel-tile bumps
-  for (let ly = r.y + 5; ly < r.y + r.h - 4; ly += 7) {
-    for (let lx = roofX0 + 3; lx < roofX1 - 3; lx += 6.5) {
-      const shadow = lx < ridgeX ? 'rgba(0,0,0,0.12)' : 'rgba(255,255,255,0.14)';
-      ctx.fillStyle = shadow;
-      ctx.beginPath();
-      ctx.arc(lx, ly, 2.4, 0, Math.PI, true);
-      ctx.fill();
-    }
-  }
-  ctx.strokeStyle = 'rgba(255,255,255,0.5)';
-  ctx.lineWidth = 2.4;
-  ctx.beginPath();
-  ctx.moveTo(ridgeX, r.y + 2); ctx.lineTo(ridgeX, r.y + r.h - 2);
-  ctx.stroke();
-}
-
-function drawRoofAframe(roofX0, roofX1, r, flip, pal) {
-  const apexX = flip ? roofX1 - 4 : roofX0 + 4;
-  const baseX = flip ? roofX0 : roofX1;
-  // shade from the tucked-in apex (dark) out to the exposed base (light)
-  // so the single slope still reads as sloped, not flat
-  const slopeGrad = ctx.createLinearGradient(apexX, r.y + r.h / 2, baseX, r.y + r.h / 2);
-  slopeGrad.addColorStop(0, shadeColor(pal.roof, -32));
-  slopeGrad.addColorStop(1, shadeColor(pal.roof, 26));
-  ctx.fillStyle = slopeGrad;
-  ctx.beginPath();
-  ctx.moveTo(apexX, r.y + r.h / 2);
-  ctx.lineTo(baseX, r.y);
-  ctx.lineTo(baseX, r.y + r.h);
-  ctx.closePath();
-  ctx.fill();
-  ctx.strokeStyle = 'rgba(0,0,0,0.24)';
-  ctx.lineWidth = 1;
-  for (let t = 0.1; t < 1; t += 0.09) {
-    ctx.beginPath();
-    ctx.moveTo(apexX, r.y + r.h / 2);
-    ctx.lineTo(baseX, r.y + r.h * t);
-    ctx.stroke();
-  }
-  ctx.strokeStyle = 'rgba(255,255,255,0.35)';
-  ctx.lineWidth = 1.8;
-  ctx.beginPath();
-  ctx.moveTo(apexX, r.y + r.h / 2); ctx.lineTo(baseX, r.y);
-  ctx.moveTo(apexX, r.y + r.h / 2); ctx.lineTo(baseX, r.y + r.h);
-  ctx.stroke();
-  // small peak window with mullion
-  const wx = apexX + (flip ? -10 : 10), wy = r.y + r.h / 2;
-  ctx.fillStyle = 'rgba(200,225,235,0.85)';
-  ctx.beginPath();
-  ctx.arc(wx, wy, 3.5, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.strokeStyle = 'rgba(255,255,255,0.7)';
-  ctx.lineWidth = 1;
-  ctx.beginPath(); ctx.moveTo(wx - 3, wy); ctx.lineTo(wx + 3, wy); ctx.moveTo(wx, wy - 3); ctx.lineTo(wx, wy + 3); ctx.stroke();
-}
-
-// Houses are drawn in a 3/4 top-down style (a la classic Zelda/Stardew towns):
-// the roof recedes toward the back of the lot (away from the street) while a
-// tall front facade -- with door, windows, and its own drop-shadow -- faces
-// the street, so the building reads as a volume instead of a flat roof-plan.
-function drawHouse(h) {
-  const r = h.wallRect;
-  const pal = h.palette;
-  const flip = h.side === 'right'; // true: house is right of the street, facade faces left (-x)
-
-  // the roof dominates the footprint (as seen from above) with only a
-  // narrow front-wall band visible along the street/yard edge -- matching
-  // a real bird's-eye house read, rather than a roughly 50/50 split
-  const roofDepth = r.w * 0.7;
-  // facade zone = near the yard/street edge; roof zone = near the back edge
-  const facadeX0 = flip ? r.x : r.x + roofDepth;
-  const facadeX1 = flip ? r.x + r.w - roofDepth : r.x + r.w;
-  const roofX0 = flip ? facadeX1 : r.x;
-  const roofX1 = flip ? r.x + r.w : facadeX0;
-  const facadeW = facadeX1 - facadeX0;
-
-  // ground shadow cast by the whole building onto the yard -- deliberately
-  // heavier than a flat-plan sprite would need, to sell the roof's height
-  ctx.fillStyle = 'rgba(0,0,0,0.38)';
-  ctx.fillRect(r.x, r.y + r.h - 2, r.w, 14);
-  ctx.fillRect(flip ? r.x + r.w : r.x - 10, r.y + 3, 10, r.h - 3);
-
-  // --- roof zone (receding, away from the street) ---
-  const roofStyle = pal.roofStyle || 'gable';
-  if (roofStyle === 'flat') drawRoofFlat(roofX0, roofX1, r, pal);
-  else if (roofStyle === 'tile') drawRoofTile(roofX0, roofX1, r, flip, pal);
-  else if (roofStyle === 'aframe') drawRoofAframe(roofX0, roofX1, r, flip, pal);
-  else drawRoofGable(roofX0, roofX1, r, flip, pal);
-
-  // --- facade zone (tall front wall facing the street) ---
-  ctx.fillStyle = pal.siding;
-  ctx.fillRect(facadeX0, r.y, facadeW, r.h);
-  ctx.strokeStyle = 'rgba(0,0,0,0.08)';
-  ctx.lineWidth = 1;
-  for (let ly = r.y + 8; ly < r.y + r.h - 6; ly += 8) {
-    ctx.beginPath();
-    ctx.moveTo(facadeX0 + 2, ly);
-    ctx.lineTo(facadeX1 - 2, ly);
-    ctx.stroke();
-  }
-  // foundation strip along the bottom for grounding
-  const foundGrad = ctx.createLinearGradient(0, r.y + r.h - 8, 0, r.y + r.h);
-  foundGrad.addColorStop(0, 'rgba(0,0,0,0)');
-  foundGrad.addColorStop(1, 'rgba(0,0,0,0.22)');
-  ctx.fillStyle = foundGrad;
-  ctx.fillRect(facadeX0, r.y + r.h - 8, facadeW, 8);
-  // eave overhang shadow where the roof meets the facade -- this height
-  // break (dark shadow falling onto the wall, bright fascia rim on the
-  // roof side) is what actually sells the roof as sitting above and in
-  // front of the wall, instead of two adjacent flat patches of color
-  const eaveX = flip ? facadeX1 : facadeX0;
-  const shadowGrad = ctx.createLinearGradient(
-    flip ? eaveX : eaveX, 0, flip ? eaveX - 15 : eaveX + 15, 0
-  );
-  shadowGrad.addColorStop(0, 'rgba(0,0,0,0.48)');
-  shadowGrad.addColorStop(1, 'rgba(0,0,0,0)');
-  ctx.fillStyle = shadowGrad;
-  ctx.fillRect(flip ? eaveX - 15 : eaveX, r.y, 15, r.h);
-  const fasciaGrad = ctx.createLinearGradient(
-    flip ? eaveX : eaveX, 0, flip ? eaveX + 8 : eaveX - 8, 0
-  );
-  fasciaGrad.addColorStop(0, 'rgba(255,255,255,0.5)');
-  fasciaGrad.addColorStop(1, 'rgba(255,255,255,0)');
-  ctx.fillStyle = fasciaGrad;
-  ctx.fillRect(flip ? eaveX : eaveX - 8, r.y, 8, r.h);
-  ctx.strokeStyle = pal.trim;
-  ctx.lineWidth = 2.4;
-  ctx.beginPath();
-  ctx.moveTo(eaveX, r.y); ctx.lineTo(eaveX, r.y + r.h);
-  ctx.stroke();
-  // gable-end trim strip along the top edge of the facade (hints a side wall)
-  ctx.fillStyle = 'rgba(0,0,0,0.12)';
-  ctx.fillRect(facadeX0, r.y, facadeW, 5);
-
-  // chimney, mounted on the roof zone
-  if (h.hasChimney) {
-    const chX = flip ? roofX1 - 20 : roofX0 + 8;
-    const chGrad = ctx.createLinearGradient(chX, 0, chX + 14, 0);
-    chGrad.addColorStop(0, shadeColor('#8a5a4a', 14));
-    chGrad.addColorStop(1, shadeColor('#8a5a4a', -14));
-    ctx.fillStyle = chGrad;
-    ctx.fillRect(chX, r.y + 6, 14, 18);
-    ctx.fillStyle = '#6b4238';
-    ctx.fillRect(chX - 2, r.y + 4, 18, 5);
-    ctx.fillStyle = 'rgba(255,255,255,0.4)';
-    ctx.beginPath();
-    ctx.ellipse(chX + 6, r.y - 4, 4, 3.4, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = 'rgba(255,255,255,0.28)';
-    ctx.beginPath();
-    ctx.ellipse(chX + 10, r.y - 11, 5.5, 4.4, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = 'rgba(255,255,255,0.18)';
-    ctx.beginPath();
-    ctx.ellipse(chX + 15, r.y - 19, 7, 5.5, 0, 0, Math.PI * 2);
-    ctx.fill();
-  }
-
-  // windows, within the facade zone
-  const winX = flip ? facadeX0 + 8 : facadeX1 - 30;
-  const winYs = [r.y + 24, r.y + r.h - 46];
-  winYs.forEach((wy, i) => {
-    drawWindow(winX, wy, 22, 22, pal.trim, h.flowerWindow === i);
-  });
-
-  // door with frame, panels, awning, knob
-  const doorW = 20, doorH = 42;
-  const dx = h.doorX, dy = r.y + r.h / 2 - doorH / 2;
-  ctx.fillStyle = pal.trim;
-  ctx.fillRect(dx - 3, dy - 3, doorW + 6, doorH + 3);
-  const doorGrad = ctx.createLinearGradient(dx, 0, dx + doorW, 0);
-  doorGrad.addColorStop(0, shadeColor(pal.door, 10));
-  doorGrad.addColorStop(1, shadeColor(pal.door, -10));
-  ctx.fillStyle = doorGrad;
-  ctx.fillRect(dx, dy, doorW, doorH);
-  ctx.strokeStyle = 'rgba(255,255,255,0.18)';
-  ctx.lineWidth = 1.2;
-  ctx.strokeRect(dx + 3, dy + 4, doorW - 6, doorH * 0.42);
-  ctx.strokeRect(dx + 3, dy + doorH * 0.52, doorW - 6, doorH * 0.42);
-  ctx.fillStyle = '#e8c95a';
-  ctx.beginPath();
-  ctx.arc(flip ? dx + 4 : dx + doorW - 4, dy + doorH / 2, 1.6, 0, Math.PI * 2);
-  ctx.fill();
-  // awning with a soft underside shadow
-  ctx.fillStyle = pal.roof;
-  ctx.beginPath();
-  ctx.ellipse(dx + doorW / 2, dy - 3, doorW / 2 + 5, 6, 0, Math.PI, 0);
-  ctx.fill();
-  ctx.fillStyle = 'rgba(0,0,0,0.18)';
-  ctx.beginPath();
-  ctx.ellipse(dx + doorW / 2, dy - 1, doorW / 2 + 4, 3, 0, 0, Math.PI);
-  ctx.fill();
-  // porch step
-  const stepGrad = ctx.createLinearGradient(0, dy + doorH, 0, dy + doorH + 6);
-  stepGrad.addColorStop(0, '#cfcabd');
-  stepGrad.addColorStop(1, '#a29c8c');
-  ctx.fillStyle = stepGrad;
-  ctx.fillRect(dx - 4, dy + doorH, doorW + 8, 6);
-}
-
-function drawWindow(wx, wy, ww, wh, trim, hasFlowerBox) {
-  ctx.fillStyle = trim;
-  ctx.fillRect(wx - 3, wy - 3, ww + 6, wh + 6);
-  const glass = ctx.createLinearGradient(wx, wy, wx, wy + wh);
-  glass.addColorStop(0, '#e3f4fb');
-  glass.addColorStop(1, '#9cc9dc');
-  ctx.fillStyle = glass;
-  ctx.fillRect(wx, wy, ww, wh);
-  ctx.fillStyle = 'rgba(255,255,255,0.35)';
-  ctx.beginPath();
-  ctx.moveTo(wx + 2, wy + 2); ctx.lineTo(wx + ww * 0.4, wy + 2); ctx.lineTo(wx + 2, wy + wh * 0.5);
-  ctx.closePath(); ctx.fill();
-  ctx.strokeStyle = '#ffffff';
-  ctx.lineWidth = 1.6;
-  ctx.beginPath();
-  ctx.moveTo(wx + ww / 2, wy); ctx.lineTo(wx + ww / 2, wy + wh);
-  ctx.moveTo(wx, wy + wh / 2); ctx.lineTo(wx + ww, wy + wh / 2);
-  ctx.stroke();
-  if (hasFlowerBox) {
-    ctx.fillStyle = '#7a5233';
-    ctx.fillRect(wx - 2, wy + wh + 2, ww + 4, 5);
-    const dots = ['#e05a5a', '#f0c93a', '#e05a5a'];
-    dots.forEach((c, i) => {
-      ctx.fillStyle = c;
-      ctx.beginPath();
-      ctx.arc(wx + 4 + i * (ww - 8) / 2, wy + wh + 1, 2.4, 0, Math.PI * 2);
-      ctx.fill();
-    });
-  }
-}
-
-function drawBush(b) {
-  const cx = b.x + b.w / 2, cy = b.y + b.h / 2;
-  ctx.fillStyle = 'rgba(0,0,0,0.15)';
-  ctx.beginPath();
-  ctx.ellipse(cx + 2, cy + b.h / 2 - 2, b.w / 2, b.h / 4, 0, 0, Math.PI * 2);
-  ctx.fill();
-  const puffs = [
-    { dx: 0, dy: 0, r: b.w / 2.1, c: '#2f6b34' },
-    { dx: -b.w / 3, dy: b.h / 5, r: b.w / 2.8, c: '#356f38' },
-    { dx: b.w / 3, dy: b.h / 6, r: b.w / 3, c: '#2a5f2f' },
-    { dx: -b.w / 8, dy: -b.h / 5, r: b.w / 3.2, c: '#4a8a4a' },
-  ];
-  for (const p of puffs) {
-    const grad = ctx.createRadialGradient(cx + p.dx - p.r * 0.3, cy + p.dy - p.r * 0.3, 1, cx + p.dx, cy + p.dy, p.r * 1.1);
-    grad.addColorStop(0, shadeColor(p.c, 28));
-    grad.addColorStop(1, p.c);
-    ctx.fillStyle = grad;
-    ctx.beginPath();
-    ctx.ellipse(cx + p.dx, cy + p.dy, p.r, p.r * 0.82, 0, 0, Math.PI * 2);
-    ctx.fill();
-  }
-}
-
 // Mailbox art is a real sprite (one of 12 styles, cycled per house). A small
 // procedural flag + checkmark badge is layered on top so "flag up = done"
-// reads the same regardless of which mailbox sprite is in use.
-// The mailbox art is drawn at a slight angle with its opening/flag on the
-// left side of the image by default, so it only reads as "facing the
-// street" for right-side houses (street to the left) as-is -- left-side
-// houses (street to the right) need the whole thing mirrored so it opens
-// toward the street instead of back into the house.
-function drawMailbox(mb, side) {
+// reads the same regardless of which mailbox sprite is in use. Every lot
+// now faces the street below it, so the sprite's default orientation
+// (opening toward the viewer) already reads correctly -- no mirroring.
+function drawMailbox(mb) {
   const img = IMAGES[`mailboxes.${mb.style}`];
   const groundY = mb.y + 16;
   ctx.fillStyle = 'rgba(0,0,0,0.15)';
@@ -1753,7 +1074,6 @@ function drawMailbox(mb, side) {
   const dispH = 40;
   ctx.save();
   ctx.translate(mb.x, groundY);
-  if (side === 'left') ctx.scale(-1, 1);
   const dispW = drawSprite(img, 0, 0, dispH, 'bottom') || dispH * 0.7;
 
   const flagX = dispW * 0.32;
