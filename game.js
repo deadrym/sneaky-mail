@@ -71,21 +71,25 @@ function drawSprite(img, x, y, dispH, anchor) {
 }
 
 /* ---------- Dog breed catalog ---------- */
-/* range: sight distance (px). coneDeg: vision cone width (degrees).
-   speed: patrol/turn speed. fillRate: suspicion gained per second while seen.
-   behavior: 'pace' (walks a patrol line), 'sentry' (stands still, sweeps gaze),
-             'sleepy' (naps on a timer, blind while asleep), 'erratic' (random direction changes) */
+/* range: forward vision-cone distance (px), lengthened so front-facing
+   detection reaches well beyond the old range. coneDeg: vision cone width
+   (degrees). nearRadius: 360-degree close-range awareness (px) -- inside
+   this radius the dog notices the player from any angle (hearing/smell),
+   not just within the cone. speed: patrol/turn speed. fillRate: suspicion
+   gained per second while seen. behavior: 'pace' (walks a patrol line),
+   'sentry' (stands still, sweeps gaze), 'sleepy' (naps on a timer, blind
+   while asleep), 'erratic' (random direction changes) */
 const BREEDS = {
-  chihuahua:   { name: 'Chihuahua',              size: 0.60, range: 55,  coneDeg: 50, speed: 40, fillRate: 0.50, behavior: 'pace' },
-  dachshund:   { name: 'Dachshund',              size: 0.80, range: 65,  coneDeg: 50, speed: 24, fillRate: 0.55, behavior: 'pace' },
-  shihtzu:     { name: 'Shih Tzu',               size: 0.75, range: 60,  coneDeg: 50, speed: 18, fillRate: 0.45, behavior: 'sleepy' },
-  frenchbulldog:{ name: 'French Bulldog',        size: 0.90, range: 75,  coneDeg: 60, speed: 20, fillRate: 0.60, behavior: 'sentry' },
-  yorkie:      { name: 'Yorkshire Terrier',      size: 0.65, range: 85,  coneDeg: 60, speed: 34, fillRate: 0.70, behavior: 'erratic' },
-  labrador:    { name: 'Labrador Retriever',     size: 1.05, range: 95,  coneDeg: 60, speed: 34, fillRate: 0.65, behavior: 'pace' },
-  goldendoodle:{ name: 'Goldendoodle',           size: 1.00, range: 90,  coneDeg: 65, speed: 32, fillRate: 0.70, behavior: 'erratic' },
-  goldenretriever:{ name: 'Golden Retriever',    size: 1.05, range: 105, coneDeg: 65, speed: 34, fillRate: 0.75, behavior: 'sentry' },
-  shepherd:    { name: 'German Shepherd',        size: 1.10, range: 122, coneDeg: 70, speed: 48, fillRate: 0.85, behavior: 'pace' },
-  pitbull:     { name: 'American Pit Bull Terrier', size: 1.15, range: 135, coneDeg: 70, speed: 46, fillRate: 0.90, behavior: 'sentry' },
+  chihuahua:   { name: 'Chihuahua',              size: 0.60, range: 83,  nearRadius: 22, coneDeg: 50, speed: 40, fillRate: 0.50, behavior: 'pace' },
+  dachshund:   { name: 'Dachshund',              size: 0.80, range: 98,  nearRadius: 26, coneDeg: 50, speed: 24, fillRate: 0.55, behavior: 'pace' },
+  shihtzu:     { name: 'Shih Tzu',               size: 0.75, range: 90,  nearRadius: 24, coneDeg: 50, speed: 18, fillRate: 0.45, behavior: 'sleepy' },
+  frenchbulldog:{ name: 'French Bulldog',        size: 0.90, range: 113, nearRadius: 30, coneDeg: 60, speed: 20, fillRate: 0.60, behavior: 'sentry' },
+  yorkie:      { name: 'Yorkshire Terrier',      size: 0.65, range: 128, nearRadius: 34, coneDeg: 60, speed: 34, fillRate: 0.70, behavior: 'erratic' },
+  labrador:    { name: 'Labrador Retriever',     size: 1.05, range: 143, nearRadius: 38, coneDeg: 60, speed: 34, fillRate: 0.65, behavior: 'pace' },
+  goldendoodle:{ name: 'Goldendoodle',           size: 1.00, range: 135, nearRadius: 36, coneDeg: 65, speed: 32, fillRate: 0.70, behavior: 'erratic' },
+  goldenretriever:{ name: 'Golden Retriever',    size: 1.05, range: 158, nearRadius: 42, coneDeg: 65, speed: 34, fillRate: 0.75, behavior: 'sentry' },
+  shepherd:    { name: 'German Shepherd',        size: 1.10, range: 183, nearRadius: 49, coneDeg: 70, speed: 48, fillRate: 0.85, behavior: 'pace' },
+  pitbull:     { name: 'American Pit Bull Terrier', size: 1.15, range: 203, nearRadius: 54, coneDeg: 70, speed: 46, fillRate: 0.90, behavior: 'sentry' },
 };
 
 /* House siding/roof/door/trim color variants, cycled per house for street variety */
@@ -116,8 +120,18 @@ const LEVELS = [
 
 const HOUSE_H = 210;
 const HOUSE_GAP = 26;
-const LOT_W = 340;          // width of one house's footprint (yard + house)
-const STREET_W = VIEW_W - LOT_W * 2; // center street/sidewalk strip
+const HOUSE_W = 150;
+const YARD_W = 150;
+const STREET_W = 180; // baseline street/sidewalk width -- the road winds inside the slack this leaves
+const CURVE_AMPLITUDE_1 = 35;
+const CURVE_AMPLITUDE_2 = 12;
+
+// The street isn't a straight line down the middle -- its center wanders
+// left/right as the world scrolls, so houses (anchored relative to it)
+// end up in a winding, less predictable layout instead of two rigid columns.
+function roadCenterX(y) {
+  return VIEW_W / 2 + CURVE_AMPLITUDE_1 * Math.sin(y / 260) + CURVE_AMPLITUDE_2 * Math.sin(y / 110 + 1.3);
+}
 
 /* ---------- Utility ---------- */
 function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
@@ -218,9 +232,11 @@ function buildWorld(levelIndex) {
   const roadSpeckles = [];
   const speckleCount = Math.round(worldH / 14);
   for (let i = 0; i < speckleCount; i++) {
+    const y = Math.random() * worldH;
+    const rcx = roadCenterX(y);
     roadSpeckles.push({
-      x: LOT_W + 34 + Math.random() * (STREET_W - 68),
-      y: Math.random() * worldH,
+      x: rcx - STREET_W / 2 + 34 + Math.random() * (STREET_W - 68),
+      y,
       r: 1 + Math.random() * 1.8,
       a: 0.05 + Math.random() * 0.08,
     });
@@ -255,17 +271,23 @@ function buildWorld(levelIndex) {
 }
 
 function makeHouse(side, topY, cfg, index) {
-  const houseW = 150;
-  const yardW = LOT_W - houseW - 20;
+  const houseW = HOUSE_W;
+  const yardW = YARD_W;
+  const rcx = roadCenterX(topY + HOUSE_H / 2);
+  const halfGap = STREET_W / 2;
+  // mailbox sits well back from the road edge (not right at the curb), so
+  // reaching it means actually walking into the yard and past the dog's
+  // territory instead of a quick tap-and-go from the sidewalk
+  const mailboxDepth = 0.35 + Math.random() * 0.3;
   let houseX, yardX, mailboxX;
   if (side === 'left') {
-    houseX = 0;
-    yardX = houseW;
-    mailboxX = LOT_W - 14;
+    yardX = rcx - halfGap - yardW;
+    houseX = yardX - houseW;
+    mailboxX = (yardX + yardW) - yardW * mailboxDepth;
   } else {
-    houseX = VIEW_W - houseW;
-    yardX = VIEW_W - LOT_W;
-    mailboxX = VIEW_W - LOT_W + 14;
+    yardX = rcx + halfGap;
+    houseX = yardX + yardW;
+    mailboxX = yardX + yardW * mailboxDepth;
   }
 
   const wallRect = { x: houseX, y: topY, w: houseW, h: HOUSE_H };
@@ -525,15 +547,23 @@ function canSeePlayer(dog, house, p) {
   if (dog.state === 'asleep') return false;
   const breed = dog.breed;
   const d = dist(dog.x, dog.y, p.x, p.y);
+
+  let nearRadius = breed.nearRadius;
+  if (p.sneaking) nearRadius *= 0.7;
   let range = breed.range;
   if (p.sneaking) range *= 0.7;
   if (d > range) return false;
 
-  const angToPlayer = Math.atan2(p.y - dog.y, p.x - dog.x);
-  const diff = Math.abs(normAngle(angToPlayer - dog.angle));
-  let halfCone = (breed.coneDeg * Math.PI / 180) / 2;
-  if (p.sneaking) halfCone *= 0.85;
-  if (diff > halfCone) return false;
+  // Inside the near-field radius the dog notices the player in any
+  // direction (hearing/smell close up); beyond it, only within the
+  // forward vision cone.
+  if (d > nearRadius) {
+    const angToPlayer = Math.atan2(p.y - dog.y, p.x - dog.x);
+    const diff = Math.abs(normAngle(angToPlayer - dog.angle));
+    let halfCone = (breed.coneDeg * Math.PI / 180) / 2;
+    if (p.sneaking) halfCone *= 0.85;
+    if (diff > halfCone) return false;
+  }
 
   // line of sight blocked by bushes?
   for (const b of house.bushes) {
@@ -663,27 +693,59 @@ function drawYard(h) {
   }
 }
 
-function drawRoad(w) {
-  ctx.fillStyle = '#a19c8d';
-  ctx.fillRect(LOT_W, 0, STREET_W, w.worldH);
-  ctx.fillStyle = '#54585c';
-  ctx.fillRect(LOT_W + 30, 0, STREET_W - 60, w.worldH);
-  // curb lines
-  ctx.strokeStyle = 'rgba(0,0,0,0.18)';
-  ctx.lineWidth = 2;
+// Sample points along the winding road, offset left/right from its
+// (curving) centerline -- used to build both filled ribbons and stroked
+// lines that follow the curve instead of running straight down the world.
+function roadPoints(worldH, offset, step) {
+  const pts = [];
+  for (let y = 0; y <= worldH; y += step) pts.push({ x: roadCenterX(y) + offset, y });
+  if (pts[pts.length - 1].y < worldH) pts.push({ x: roadCenterX(worldH) + offset, y: worldH });
+  return pts;
+}
+function fillRibbon(leftPts, rightPts, color) {
+  ctx.fillStyle = color;
   ctx.beginPath();
-  ctx.moveTo(LOT_W + 30, 0); ctx.lineTo(LOT_W + 30, w.worldH);
-  ctx.moveTo(LOT_W + STREET_W - 30, 0); ctx.lineTo(LOT_W + STREET_W - 30, w.worldH);
+  ctx.moveTo(leftPts[0].x, leftPts[0].y);
+  for (let i = 1; i < leftPts.length; i++) ctx.lineTo(leftPts[i].x, leftPts[i].y);
+  for (let i = rightPts.length - 1; i >= 0; i--) ctx.lineTo(rightPts[i].x, rightPts[i].y);
+  ctx.closePath();
+  ctx.fill();
+}
+function strokePath(pts, strokeStyle, lineWidth, dash) {
+  ctx.strokeStyle = strokeStyle;
+  ctx.lineWidth = lineWidth;
+  ctx.setLineDash(dash || []);
+  ctx.beginPath();
+  ctx.moveTo(pts[0].x, pts[0].y);
+  for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
   ctx.stroke();
+  ctx.setLineDash([]);
+}
+
+function drawRoad(w) {
+  const step = 8;
+  const half = STREET_W / 2;
+
+  fillRibbon(roadPoints(w.worldH, -half, step), roadPoints(w.worldH, half, step), '#a19c8d');
+  const roadL = roadPoints(w.worldH, -half + 30, step);
+  const roadR = roadPoints(w.worldH, half - 30, step);
+  fillRibbon(roadL, roadR, '#54585c');
+
+  // curb lines
+  strokePath(roadL, 'rgba(0,0,0,0.18)', 2);
+  strokePath(roadR, 'rgba(0,0,0,0.18)', 2);
+
   // sidewalk expansion-joint ticks
   ctx.strokeStyle = 'rgba(0,0,0,0.08)';
   ctx.lineWidth = 1.5;
   for (let y = 20; y < w.worldH; y += 46) {
+    const rcx = roadCenterX(y);
     ctx.beginPath();
-    ctx.moveTo(LOT_W + 4, y); ctx.lineTo(LOT_W + 27, y);
-    ctx.moveTo(LOT_W + STREET_W - 27, y); ctx.lineTo(LOT_W + STREET_W - 4, y);
+    ctx.moveTo(rcx - half + 4, y); ctx.lineTo(rcx - half + 27, y);
+    ctx.moveTo(rcx + half - 27, y); ctx.lineTo(rcx + half - 4, y);
     ctx.stroke();
   }
+
   // asphalt speckle texture
   for (const sp of w.decor.roadSpeckles) {
     ctx.fillStyle = `rgba(255,255,255,${sp.a})`;
@@ -691,15 +753,9 @@ function drawRoad(w) {
     ctx.arc(sp.x, sp.y, sp.r, 0, Math.PI * 2);
     ctx.fill();
   }
+
   // center dashed line
-  ctx.strokeStyle = 'rgba(255,224,110,0.8)';
-  ctx.setLineDash([16, 18]);
-  ctx.lineWidth = 3;
-  ctx.beginPath();
-  ctx.moveTo(VIEW_W / 2, 0);
-  ctx.lineTo(VIEW_W / 2, w.worldH);
-  ctx.stroke();
-  ctx.setLineDash([]);
+  strokePath(roadPoints(w.worldH, 0, step), 'rgba(255,224,110,0.8)', 3, [16, 18]);
 }
 
 function drawRoofGable(roofX0, roofX1, r, flip, pal) {
@@ -1033,6 +1089,18 @@ function drawVisionCone(dog) {
   ctx.moveTo(dog.x, dog.y);
   ctx.lineTo(dog.x + Math.cos(dog.angle + half) * range, dog.y + Math.sin(dog.angle + half) * range);
   ctx.stroke();
+
+  // near-field awareness ring: the dog notices the player from any angle
+  // this close, regardless of where its cone is pointing
+  if (dog.state !== 'asleep') {
+    ctx.strokeStyle = `rgba(${baseColor},0.5)`;
+    ctx.lineWidth = 1.2;
+    ctx.setLineDash([3, 4]);
+    ctx.beginPath();
+    ctx.arc(dog.x, dog.y, breed.nearRadius, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
 }
 
 function drawDog(dog) {
