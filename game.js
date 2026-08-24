@@ -110,51 +110,6 @@ function drawSprite(img, x, y, dispH, anchor) {
   return dispW;
 }
 
-/* ---------- Pixel-art drawing primitives ----------
-   Everything procedural (roads, houses, trees, lamps, garden decor) is
-   built from these instead of smooth canvas shapes/gradients, so the
-   hand-drawn scenery reads in the same chunky, flat-shaded, outlined
-   style as the sprite art rather than looking like a vector-art overlay
-   on top of pixel-art characters. */
-const PX = 3; // one "art pixel" = this many canvas pixels
-
-function pxSnap(v) { return Math.round(v / PX) * PX; }
-
-function pxRect(x, y, w, h, color) {
-  ctx.fillStyle = color;
-  const x0 = pxSnap(x), y0 = pxSnap(y);
-  ctx.fillRect(x0, y0, Math.max(PX, pxSnap(x + w) - x0), Math.max(PX, pxSnap(y + h) - y0));
-}
-
-// Blocky circle: stamped horizontal bars snapped to the pixel grid, the
-// classic way pixel art approximates a circle instead of a smooth arc.
-function pxCircle(cx, cy, r, color) {
-  ctx.fillStyle = color;
-  const rr = Math.max(PX, r);
-  for (let y = -rr; y <= rr; y += PX) {
-    const halfW = Math.sqrt(Math.max(0, rr * rr - (y + PX / 2) * (y + PX / 2)));
-    if (halfW <= 0) continue;
-    const w = Math.max(PX, pxSnap(halfW * 2));
-    ctx.fillRect(pxSnap(cx - w / 2), pxSnap(cy + y), w, PX);
-  }
-}
-
-// A filled blocky circle with a flat-color outline ring around it --
-// drawn as an oversized outline-colored circle behind a smaller fill.
-function pxBlob(cx, cy, r, fillColor, outlineColor) {
-  if (outlineColor) pxCircle(cx, cy, r, outlineColor);
-  pxCircle(cx, cy, Math.max(PX, r - PX), fillColor);
-}
-
-function pxOutlineRect(x, y, w, h, color) {
-  ctx.fillStyle = color;
-  const x0 = pxSnap(x), y0 = pxSnap(y), x1 = pxSnap(x + w), y1 = pxSnap(y + h);
-  ctx.fillRect(x0, y0, x1 - x0, PX);
-  ctx.fillRect(x0, y1 - PX, x1 - x0, PX);
-  ctx.fillRect(x0, y0, PX, y1 - y0);
-  ctx.fillRect(x1 - PX, y0, PX, y1 - y0);
-}
-
 /* ---------- Dog breed catalog ---------- */
 /* range: forward vision-cone distance (px), lengthened so front-facing
    detection reaches well beyond the old range. coneDeg: vision cone width
@@ -255,7 +210,8 @@ function stonesAlongPath(points, spacing) {
     const segLen = dist(a.x, a.y, b.x, b.y);
     while (nextDist <= walked + segLen) {
       const t = segLen > 0 ? (nextDist - walked) / segLen : 0;
-      stones.push({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t, r: 7 + Math.random() * 3, rot: Math.random() * Math.PI });
+      const jx = (Math.random() - 0.5) * 3, jy = (Math.random() - 0.5) * 3;
+      stones.push({ x: a.x + (b.x - a.x) * t + jx, y: a.y + (b.y - a.y) * t + jy, r: 8 + Math.random() * 3.5, rot: Math.random() * Math.PI, moss: Math.random() < 0.2 });
       nextDist += spacing;
     }
     walked += segLen;
@@ -507,11 +463,12 @@ function makeHouse(side, topY, cfg, index, corridorBaseX) {
   });
   for (let t = 0; t < treeCount; t++) {
     const p = placeInYard(24, 28);
-    trees.push({ x: p.x, y: p.y, r: 16 + Math.random() * 8, kind: Math.random() < 0.5 ? 'pine' : 'round' });
+    const kind = theme === 'ornamental' && Math.random() < 0.4 ? 'blossom' : (Math.random() < 0.5 ? 'pine' : 'round');
+    trees.push({ x: p.x, y: p.y, r: 16 + Math.random() * 8, kind });
   }
   for (let f = 0; f < flowerCount; f++) {
     const p = placeInYard(16, 16);
-    flowerBeds.push({ x: p.x, y: p.y, w: 20 + Math.random() * 14, h: 14 + Math.random() * 8 });
+    flowerBeds.push({ x: p.x, y: p.y, w: 20 + Math.random() * 14, h: 14 + Math.random() * 8, dense: theme === 'garden' });
   }
   for (let r = 0; r < rockCount; r++) {
     const p = placeInYard(12, 12);
@@ -519,6 +476,28 @@ function makeHouse(side, topY, cfg, index, corridorBaseX) {
   }
   // lamp post stands on the sidewalk (the street's outer margin), not in the yard
   const lamp = { x: side === 'left' ? streetX0 + 12 : streetX0 + STREET_W - 12, y: topY + HOUSE_H - 20 };
+
+  // curated yard props (bench / fountain / gnome) -- a light sprinkle tied
+  // to the theme, not a prop on every lawn
+  const props = [];
+  if (theme === 'garden') {
+    const p1 = placeInYard(20, 20);
+    props.push({ kind: 'fountain', x: p1.x, y: p1.y });
+    if (Math.random() < 0.6) {
+      const p2 = placeInYard(20, 20);
+      props.push({ kind: 'bench', x: p2.x, y: p2.y, rot: Math.random() < 0.5 ? 0 : Math.PI / 2 });
+    }
+  } else if (theme === 'ornamental') {
+    const p1 = placeInYard(16, 16);
+    props.push({ kind: 'gnome', x: p1.x, y: p1.y });
+    if (Math.random() < 0.5) {
+      const p2 = placeInYard(20, 20);
+      props.push({ kind: 'bench', x: p2.x, y: p2.y, rot: Math.random() < 0.5 ? 0 : Math.PI / 2 });
+    }
+  } else if (theme === 'wooded' && Math.random() < 0.5) {
+    const p1 = placeInYard(20, 20);
+    props.push({ kind: 'bench', x: p1.x, y: p1.y, rot: Math.random() < 0.5 ? 0 : Math.PI / 2 });
+  }
 
   // grass tufts: small static texture marks scattered in the yard
   const grassTufts = [];
@@ -561,7 +540,7 @@ function makeHouse(side, topY, cfg, index, corridorBaseX) {
   return {
     side, topY, wallRect, yardRect, mailbox, bushes, dogs, index,
     palette, hasChimney, flowerWindow, doorX, grassTufts,
-    theme, trees, flowerBeds, rocks, lamp, pathStones,
+    theme, trees, flowerBeds, rocks, lamp, pathStones, props,
   };
 }
 
@@ -863,130 +842,307 @@ function draw() {
 function drawBackground(w) {
   ctx.fillStyle = '#4f8a4b';
   ctx.fillRect(0, 0, w.worldW, w.worldH);
-  // sky strip above the first row -- flat band, not a smooth gradient
+  // sky strip above the first row, with a soft gradient and drifting clouds
   const skyH = 130;
-  pxRect(0, 0, w.worldW, skyH, '#8fd0e8');
-  pxRect(0, skyH - PX * 4, w.worldW, PX * 4, '#a9dcec');
+  const sky = ctx.createLinearGradient(0, 0, 0, skyH);
+  sky.addColorStop(0, '#8fd0e8');
+  sky.addColorStop(1, '#4f8a4b');
+  ctx.fillStyle = sky;
+  ctx.fillRect(0, 0, w.worldW, skyH);
+  ctx.fillStyle = 'rgba(255,255,255,0.85)';
   for (const c of w.decor.clouds) {
-    pxBlob(c.x, c.y, 13 * c.s, '#ffffff', 'rgba(255,255,255,0.6)');
-    pxBlob(c.x + 20 * c.s, c.y + 4 * c.s, 10 * c.s, '#ffffff', 'rgba(255,255,255,0.6)');
-    pxBlob(c.x - 18 * c.s, c.y + 5 * c.s, 9 * c.s, '#ffffff', 'rgba(255,255,255,0.6)');
+    ctx.beginPath();
+    ctx.ellipse(c.x, c.y, 26 * c.s, 12 * c.s, 0, 0, Math.PI * 2);
+    ctx.ellipse(c.x + 20 * c.s, c.y + 4 * c.s, 18 * c.s, 10 * c.s, 0, 0, Math.PI * 2);
+    ctx.ellipse(c.x - 18 * c.s, c.y + 5 * c.s, 16 * c.s, 9 * c.s, 0, 0, Math.PI * 2);
+    ctx.fill();
   }
 }
 
+// Rounded, slightly overlapping cobbles with a soft shadow/highlight and a
+// faint moss fleck -- reads as a proper stepping-stone path, not UI chips.
 function drawPathStones(stones) {
   for (const s of stones) {
-    pxBlob(s.x + PX, s.y + PX, s.r, 'rgba(0,0,0,0.14)', null);
-    pxBlob(s.x, s.y, s.r, '#c7c0ae', '#8f8877');
-    pxRect(s.x - s.r * 0.3, s.y - s.r * 0.3, s.r * 0.5, PX, 'rgba(255,255,255,0.35)');
+    ctx.fillStyle = 'rgba(0,0,0,0.16)';
+    ctx.beginPath(); ctx.ellipse(s.x + 1.5, s.y + 2.5, s.r, s.r * 0.66, s.rot, 0, Math.PI * 2); ctx.fill();
+    const grad = ctx.createRadialGradient(s.x - s.r * 0.3, s.y - s.r * 0.3, 1, s.x, s.y, s.r * 1.2);
+    grad.addColorStop(0, '#ddd5c1');
+    grad.addColorStop(0.6, '#c7bfa9');
+    grad.addColorStop(1, '#a49a83');
+    ctx.fillStyle = grad;
+    ctx.beginPath(); ctx.ellipse(s.x, s.y, s.r, s.r * 0.74, s.rot, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = 'rgba(120,110,90,0.35)';
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.ellipse(s.x, s.y, s.r, s.r * 0.74, s.rot, 0, Math.PI * 2); ctx.stroke();
+    if (s.moss) {
+      ctx.fillStyle = 'rgba(90,140,70,0.35)';
+      ctx.beginPath(); ctx.ellipse(s.x - s.r * 0.3, s.y + s.r * 0.15, s.r * 0.35, s.r * 0.2, s.rot, 0, Math.PI * 2); ctx.fill();
+    }
   }
 }
 
+// A loose scattered cluster of small blooms over dark soil, with a few
+// leaf sprigs, rather than a tidy ring of dots.
 function drawFlowerBed(f) {
-  pxBlob(f.x, f.y, Math.max(f.w, f.h) / 2, '#3a2a1c', '#241a11');
-  const colors = ['#e0556a', '#f0c93a', '#e88ac9', '#f4f4f4', '#8a6ad1'];
-  const n = 6;
+  ctx.fillStyle = 'rgba(0,0,0,0.12)';
+  ctx.beginPath(); ctx.ellipse(f.x + 1, f.y + 2, f.w / 2, f.h / 2, 0, 0, Math.PI * 2); ctx.fill();
+  const soil = ctx.createRadialGradient(f.x, f.y, 1, f.x, f.y, Math.max(f.w, f.h) / 2);
+  soil.addColorStop(0, '#4a3626');
+  soil.addColorStop(1, '#2e2015');
+  ctx.fillStyle = soil;
+  ctx.beginPath(); ctx.ellipse(f.x, f.y, f.w / 2, f.h / 2, 0, 0, Math.PI * 2); ctx.fill();
+  const colors = ['#e0556a', '#f0c93a', '#e88ac9', '#f4f4f4', '#8a6ad1', '#f0925a'];
+  const n = f.dense ? 10 : 7;
   for (let i = 0; i < n; i++) {
-    const a = (i / n) * Math.PI * 2;
-    pxBlob(f.x + Math.cos(a) * f.w * 0.32, f.y + Math.sin(a) * f.h * 0.32, PX * 1.4, colors[i % colors.length], null);
+    const a = (i / n) * Math.PI * 2 + (i % 2) * 0.35;
+    const rad = 0.2 + (i % 3) * 0.28;
+    const fx = f.x + Math.cos(a) * f.w * rad, fy = f.y + Math.sin(a) * f.h * rad;
+    if (i % 3 === 0) {
+      ctx.strokeStyle = '#3f7a3d';
+      ctx.lineWidth = 1.2;
+      ctx.beginPath(); ctx.moveTo(fx, fy + 3); ctx.lineTo(fx, fy - 1); ctx.stroke();
+    }
+    ctx.fillStyle = colors[i % colors.length];
+    ctx.beginPath(); ctx.arc(fx, fy, 2.6, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,0.5)';
+    ctx.beginPath(); ctx.arc(fx - 0.7, fy - 0.7, 0.9, 0, Math.PI * 2); ctx.fill();
   }
-  pxCircle(f.x, f.y, PX * 1.2, '#4a8a4a');
 }
 
 function drawRock(r) {
-  pxBlob(r.x + PX, r.y + PX, r.r, 'rgba(0,0,0,0.15)', null);
-  pxBlob(r.x, r.y, r.r, '#8a8f94', '#5c6166');
-  pxRect(r.x - r.r * 0.3, r.y - r.r * 0.35, r.r * 0.45, PX, 'rgba(255,255,255,0.3)');
+  ctx.fillStyle = 'rgba(0,0,0,0.16)';
+  ctx.beginPath(); ctx.ellipse(r.x + 1.5, r.y + 2, r.r, r.r * 0.6, 0, 0, Math.PI * 2); ctx.fill();
+  const grad = ctx.createRadialGradient(r.x - r.r * 0.35, r.y - r.r * 0.4, 1, r.x, r.y, r.r * 1.1);
+  grad.addColorStop(0, '#a9aeb3');
+  grad.addColorStop(0.55, '#8a8f94');
+  grad.addColorStop(1, '#5f6469');
+  ctx.fillStyle = grad;
+  ctx.beginPath(); ctx.ellipse(r.x, r.y, r.r, r.r * 0.78, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = 'rgba(0,0,0,0.18)';
+  ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(r.x - r.r * 0.4, r.y + r.r * 0.1); ctx.lineTo(r.x + r.r * 0.3, r.y - r.r * 0.15); ctx.stroke();
 }
 
 function drawTree(t) {
-  pxBlob(t.x + PX, t.y + t.r * 0.55, t.r * 0.7, 'rgba(0,0,0,0.18)', null);
-  pxRect(t.x - 3, t.y - 4, 6, t.r * 0.5, '#6b4a2e');
-  pxRect(t.x - 3, t.y - 4, PX, t.r * 0.5, '#4f3620');
+  ctx.fillStyle = 'rgba(0,0,0,0.2)';
+  ctx.beginPath(); ctx.ellipse(t.x + 2, t.y + t.r * 0.55, t.r * 0.9, t.r * 0.4, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#6b4a2e';
+  ctx.fillRect(t.x - 3, t.y - 4, 6, t.r * 0.5);
+  ctx.fillStyle = 'rgba(0,0,0,0.2)';
+  ctx.fillRect(t.x - 3, t.y - 4, 2, t.r * 0.5);
   if (t.kind === 'pine') {
     for (let i = 0; i < 3; i++) {
       const tw = t.r * (1 - i * 0.22);
       const ty = t.y - i * t.r * 0.5;
-      const shade = i === 0 ? '#245c2e' : (i === 1 ? '#2f6b3a' : '#3d7d44');
-      ctx.fillStyle = shade;
+      const grad = ctx.createLinearGradient(t.x - tw, ty, t.x + tw, ty);
+      grad.addColorStop(0, '#254f2c');
+      grad.addColorStop(0.5, '#3d8144');
+      grad.addColorStop(1, '#2a5c30');
+      ctx.fillStyle = grad;
       ctx.beginPath();
-      ctx.moveTo(pxSnap(t.x), pxSnap(ty - t.r * 0.7));
-      ctx.lineTo(pxSnap(t.x - tw), pxSnap(ty + t.r * 0.15));
-      ctx.lineTo(pxSnap(t.x + tw), pxSnap(ty + t.r * 0.15));
+      ctx.moveTo(t.x, ty - t.r * 0.7);
+      ctx.lineTo(t.x - tw, ty + t.r * 0.15);
+      ctx.lineTo(t.x + tw, ty + t.r * 0.15);
       ctx.closePath();
       ctx.fill();
     }
+  } else if (t.kind === 'blossom') {
+    const grad = ctx.createRadialGradient(t.x - t.r * 0.3, t.y - t.r * 0.6, 2, t.x, t.y - t.r * 0.3, t.r * 1.1);
+    grad.addColorStop(0, '#ffd4e8');
+    grad.addColorStop(0.55, '#f2a3c8');
+    grad.addColorStop(1, '#c76fa0');
+    ctx.fillStyle = grad;
+    ctx.beginPath(); ctx.arc(t.x, t.y - t.r * 0.3, t.r, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,0.75)';
+    for (let i = 0; i < 5; i++) {
+      const a = Math.random() * Math.PI * 2, rr = Math.random() * t.r * 0.75;
+      ctx.beginPath(); ctx.arc(t.x + Math.cos(a) * rr, t.y - t.r * 0.3 + Math.sin(a) * rr, 1.3, 0, Math.PI * 2); ctx.fill();
+    }
   } else {
-    pxBlob(t.x, t.y - t.r * 0.3, t.r, '#4a9143', '#2e6b30');
-    pxBlob(t.x - t.r * 0.3, t.y - t.r * 0.55, t.r * 0.4, '#6fbf5f', null);
+    const grad = ctx.createRadialGradient(t.x - t.r * 0.3, t.y - t.r * 0.6, 2, t.x, t.y - t.r * 0.3, t.r * 1.1);
+    grad.addColorStop(0, '#6fbf5f');
+    grad.addColorStop(1, '#3a7a3a');
+    ctx.fillStyle = grad;
+    ctx.beginPath(); ctx.arc(t.x, t.y - t.r * 0.3, t.r, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = 'rgba(0,0,0,0.12)';
+    ctx.beginPath(); ctx.arc(t.x + t.r * 0.35, t.y - t.r * 0.15, t.r * 0.55, 0, Math.PI * 2); ctx.fill();
   }
 }
 
 function drawLamp(l) {
-  pxBlob(l.x, l.y + 14, 6, 'rgba(0,0,0,0.15)', null);
-  pxRect(l.x - 2, l.y - 24, 4, 38, '#3a3a3e');
-  pxRect(l.x - 2, l.y - 24, PX, 38, '#54545a');
-  pxCircle(l.x, l.y + 14, 4, '#2a2a2e');
-  // glow as concentric blocky rings instead of a radial gradient
-  pxCircle(l.x, l.y - 28, 14, 'rgba(255,230,150,0.14)');
-  pxCircle(l.x, l.y - 28, 9, 'rgba(255,230,150,0.28)');
-  pxBlob(l.x, l.y - 28, 6, '#f0d060', '#c99a2e');
+  ctx.fillStyle = 'rgba(0,0,0,0.15)';
+  ctx.beginPath(); ctx.ellipse(l.x, l.y + 14, 6, 2.4, 0, 0, Math.PI * 2); ctx.fill();
+  const postGrad = ctx.createLinearGradient(l.x - 2, 0, l.x + 2, 0);
+  postGrad.addColorStop(0, '#54545a');
+  postGrad.addColorStop(1, '#26262a');
+  ctx.fillStyle = postGrad;
+  ctx.fillRect(l.x - 2, l.y - 24, 4, 38);
+  ctx.fillStyle = '#2a2a2e';
+  ctx.beginPath(); ctx.arc(l.x, l.y + 14, 4, 0, Math.PI * 2); ctx.fill();
+  const glow = ctx.createRadialGradient(l.x, l.y - 28, 0, l.x, l.y - 28, 15);
+  glow.addColorStop(0, 'rgba(255,230,150,0.55)');
+  glow.addColorStop(1, 'rgba(255,230,150,0)');
+  ctx.fillStyle = glow;
+  ctx.beginPath(); ctx.arc(l.x, l.y - 28, 15, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#2a2a2e';
+  ctx.fillRect(l.x - 7, l.y - 34, 14, 3);
+  const lampGrad = ctx.createLinearGradient(l.x - 5, 0, l.x + 5, 0);
+  lampGrad.addColorStop(0, '#fff2c0');
+  lampGrad.addColorStop(1, '#f0d060');
+  ctx.fillStyle = lampGrad;
+  ctx.beginPath(); ctx.ellipse(l.x, l.y - 28, 5, 6, 0, 0, Math.PI * 2); ctx.fill();
   ctx.fillStyle = '#2a2a2e';
   ctx.beginPath();
-  ctx.moveTo(pxSnap(l.x - 6), pxSnap(l.y - 34));
-  ctx.lineTo(pxSnap(l.x + 6), pxSnap(l.y - 34));
-  ctx.lineTo(pxSnap(l.x), pxSnap(l.y - 40));
+  ctx.moveTo(l.x - 6, l.y - 34); ctx.lineTo(l.x + 6, l.y - 34); ctx.lineTo(l.x, l.y - 40);
   ctx.closePath(); ctx.fill();
+}
+
+// Curated yard props (bench / fountain / gnome), sprinkled per yard theme.
+function drawProp(p) {
+  if (p.kind === 'bench') {
+    ctx.save();
+    ctx.translate(p.x, p.y);
+    if (p.rot) ctx.rotate(p.rot);
+    ctx.fillStyle = 'rgba(0,0,0,0.18)';
+    ctx.beginPath(); ctx.ellipse(1, 9, 16, 5, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#3a2a1c';
+    ctx.fillRect(-14, -2, 4, 10); ctx.fillRect(10, -2, 4, 10);
+    const seatGrad = ctx.createLinearGradient(0, -6, 0, 2);
+    seatGrad.addColorStop(0, '#9c7248'); seatGrad.addColorStop(1, '#7a5836');
+    ctx.fillStyle = seatGrad;
+    ctx.fillRect(-16, -6, 32, 6);
+    ctx.fillStyle = '#8a6640';
+    ctx.fillRect(-16, -16, 32, 5);
+    for (let i = -14; i < 16; i += 6) { ctx.fillStyle = 'rgba(0,0,0,0.15)'; ctx.fillRect(i, -6, 1.4, 6); }
+    ctx.restore();
+  } else if (p.kind === 'fountain') {
+    ctx.fillStyle = 'rgba(0,0,0,0.18)';
+    ctx.beginPath(); ctx.ellipse(p.x + 1, p.y + 13, 17, 6, 0, 0, Math.PI * 2); ctx.fill();
+    const rim = ctx.createRadialGradient(p.x, p.y, 4, p.x, p.y, 18);
+    rim.addColorStop(0, '#cfc9ba'); rim.addColorStop(1, '#a39c8a');
+    ctx.fillStyle = rim;
+    ctx.beginPath(); ctx.ellipse(p.x, p.y, 18, 12, 0, 0, Math.PI * 2); ctx.fill();
+    const water = ctx.createRadialGradient(p.x, p.y - 1, 1, p.x, p.y, 13);
+    water.addColorStop(0, '#bfe8f2'); water.addColorStop(1, '#5fa8c2');
+    ctx.fillStyle = water;
+    ctx.beginPath(); ctx.ellipse(p.x, p.y, 13, 8, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#cfc9ba';
+    ctx.beginPath(); ctx.ellipse(p.x, p.y - 6, 4, 3, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.6)';
+    ctx.lineWidth = 1.2;
+    for (let i = 0; i < 3; i++) {
+      ctx.beginPath();
+      ctx.moveTo(p.x, p.y - 6);
+      ctx.lineTo(p.x + (i - 1) * 4, p.y - 1);
+      ctx.stroke();
+    }
+  } else if (p.kind === 'gnome') {
+    ctx.fillStyle = 'rgba(0,0,0,0.18)';
+    ctx.beginPath(); ctx.ellipse(p.x, p.y + 9, 6, 2.4, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#2f5ea8';
+    ctx.fillRect(p.x - 4, p.y - 4, 8, 10);
+    ctx.fillStyle = '#e8c9a0';
+    ctx.beginPath(); ctx.arc(p.x, p.y - 7, 4, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#f4f4f4';
+    ctx.beginPath(); ctx.ellipse(p.x, p.y - 4, 3.4, 2.2, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#c94040';
+    ctx.beginPath();
+    ctx.moveTo(p.x - 5, p.y - 9); ctx.lineTo(p.x + 5, p.y - 9); ctx.lineTo(p.x, p.y - 18);
+    ctx.closePath(); ctx.fill();
+  }
 }
 
 function drawYard(h) {
   const yr = h.yardRect;
-  // mowed-stripe texture, as flat pixel-snapped bands
-  pxRect(yr.x, yr.y, yr.w, yr.h, '#5fa85a');
-  const stripeW = 21;
+  // mowed-stripe texture
+  ctx.fillStyle = '#5fa85a';
+  ctx.fillRect(yr.x, yr.y, yr.w, yr.h);
+  ctx.fillStyle = 'rgba(255,255,255,0.05)';
+  const stripeW = 22;
   for (let sx = yr.x - (yr.x % stripeW); sx < yr.x + yr.w; sx += stripeW * 2) {
-    pxRect(Math.max(sx, yr.x), yr.y, Math.min(stripeW, yr.x + yr.w - sx), yr.h, 'rgba(255,255,255,0.06)');
+    ctx.fillRect(Math.max(sx, yr.x), yr.y, Math.min(stripeW, yr.x + yr.w - sx), yr.h);
   }
-  // grass tufts, as tiny blocky ticks
+  // grass tufts
   for (const t of h.grassTufts) {
-    pxRect(t.x, t.y - PX, PX, PX * 2, t.shade === 'light' ? 'rgba(255,255,255,0.25)' : 'rgba(0,0,0,0.12)');
+    ctx.strokeStyle = t.shade === 'light' ? 'rgba(255,255,255,0.22)' : 'rgba(0,0,0,0.12)';
+    ctx.lineWidth = 1.4;
+    ctx.beginPath();
+    ctx.moveTo(t.x, t.y);
+    ctx.lineTo(t.x + Math.cos(t.rot) * 5, t.y + Math.sin(t.rot) * 5 - 3);
+    ctx.stroke();
   }
-  // curvy stepping-stone path from the street to the door/mailbox, then
+  // maze-like stepping-stone path from the street to the door/mailbox, then
   // yard dressing -- the mix varies per house's theme for a distinct look
   drawPathStones(h.pathStones);
   for (const r of h.rocks) drawRock(r);
   for (const f of h.flowerBeds) drawFlowerBed(f);
   for (const t of h.trees) drawTree(t);
+  for (const p of h.props) drawProp(p);
+}
+
+// Sidewalk paver texture: a grid of joint lines rather than sparse ticks,
+// so the concrete reads as individual slabs like the reference neighborhood.
+function drawSidewalkPavers(x0, y0, w, h, vertical) {
+  ctx.strokeStyle = 'rgba(120,112,96,0.4)';
+  ctx.lineWidth = 1;
+  const step = 26;
+  if (vertical) {
+    for (let y = y0 - (y0 % step); y < y0 + h; y += step) {
+      ctx.beginPath(); ctx.moveTo(x0, y); ctx.lineTo(x0 + w, y); ctx.stroke();
+    }
+    ctx.beginPath(); ctx.moveTo(x0 + w / 2, y0); ctx.lineTo(x0 + w / 2, y0 + h); ctx.stroke();
+  } else {
+    for (let x = x0 - (x0 % step); x < x0 + w; x += step) {
+      ctx.beginPath(); ctx.moveTo(x, y0); ctx.lineTo(x, y0 + h); ctx.stroke();
+    }
+    ctx.beginPath(); ctx.moveTo(x0, y0 + h / 2); ctx.lineTo(x0 + w, y0 + h / 2); ctx.stroke();
+  }
 }
 
 function drawVerticalStreet(streetX0, worldH) {
   const x0 = streetX0, x1 = streetX0 + STREET_W;
-  pxRect(x0, 0, STREET_W, worldH, '#a19c8d');
-  pxRect(x0 + 30, 0, STREET_W - 60, worldH, '#54585c');
-  pxRect(x0 + 30 - PX, 0, PX, worldH, '#1c1e20');
-  pxRect(x1 - 30, 0, PX, worldH, '#1c1e20');
-  for (let y = 18; y < worldH; y += 45) {
-    pxRect(x0 + 3, y, 24, PX, '#8a8578');
-    pxRect(x1 - 27, y, 24, PX, '#8a8578');
-  }
-  for (let y = 0; y < worldH; y += 33) {
-    pxRect(x0 + STREET_W / 2 - 7, y, 14, 18, '#ecc94a');
-  }
+  ctx.fillStyle = '#bdb6a2';
+  ctx.fillRect(x0, 0, STREET_W, worldH);
+  drawSidewalkPavers(x0, 0, 30, worldH, true);
+  drawSidewalkPavers(x1 - 30, 0, 30, worldH, true);
+  const asphalt = ctx.createLinearGradient(x0 + 30, 0, x1 - 30, 0);
+  asphalt.addColorStop(0, '#494c4f');
+  asphalt.addColorStop(0.5, '#5a5e62');
+  asphalt.addColorStop(1, '#494c4f');
+  ctx.fillStyle = asphalt;
+  ctx.fillRect(x0 + 30, 0, STREET_W - 60, worldH);
+  ctx.strokeStyle = 'rgba(0,0,0,0.35)';
+  ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(x0 + 30, 0); ctx.lineTo(x0 + 30, worldH); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(x1 - 30, 0); ctx.lineTo(x1 - 30, worldH); ctx.stroke();
+  ctx.strokeStyle = '#ecc94a';
+  ctx.lineWidth = 3;
+  ctx.setLineDash([16, 12]);
+  ctx.beginPath(); ctx.moveTo(x0 + STREET_W / 2, 0); ctx.lineTo(x0 + STREET_W / 2, worldH); ctx.stroke();
+  ctx.setLineDash([]);
 }
 
 function drawHorizontalStreet(streetY0, worldW) {
   const y0 = streetY0, y1 = streetY0 + STREET_W;
-  pxRect(0, y0, worldW, STREET_W, '#a19c8d');
-  pxRect(0, y0 + 30, worldW, STREET_W - 60, '#54585c');
-  pxRect(0, y0 + 30 - PX, worldW, PX, '#1c1e20');
-  pxRect(0, y1 - 30, worldW, PX, '#1c1e20');
-  for (let x = 18; x < worldW; x += 45) {
-    pxRect(x, y0 + 3, PX, 24, '#8a8578');
-    pxRect(x, y1 - 27, PX, 24, '#8a8578');
-  }
-  for (let x = 0; x < worldW; x += 33) {
-    pxRect(x, y0 + STREET_W / 2 - 7, 18, 14, '#ecc94a');
-  }
+  ctx.fillStyle = '#bdb6a2';
+  ctx.fillRect(0, y0, worldW, STREET_W);
+  drawSidewalkPavers(0, y0, worldW, 30, false);
+  drawSidewalkPavers(0, y1 - 30, worldW, 30, false);
+  const asphalt = ctx.createLinearGradient(0, y0 + 30, 0, y1 - 30);
+  asphalt.addColorStop(0, '#494c4f');
+  asphalt.addColorStop(0.5, '#5a5e62');
+  asphalt.addColorStop(1, '#494c4f');
+  ctx.fillStyle = asphalt;
+  ctx.fillRect(0, y0 + 30, worldW, STREET_W - 60);
+  ctx.strokeStyle = 'rgba(0,0,0,0.35)';
+  ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(0, y0 + 30); ctx.lineTo(worldW, y0 + 30); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(0, y1 - 30); ctx.lineTo(worldW, y1 - 30); ctx.stroke();
+  ctx.strokeStyle = '#ecc94a';
+  ctx.lineWidth = 3;
+  ctx.setLineDash([16, 12]);
+  ctx.beginPath(); ctx.moveTo(0, y0 + STREET_W / 2); ctx.lineTo(worldW, y0 + STREET_W / 2); ctx.stroke();
+  ctx.setLineDash([]);
 }
 
 function drawRoad(w) {
@@ -997,18 +1153,32 @@ function drawRoad(w) {
     drawHorizontalStreet(band.y0, w.worldW);
   }
 
-  // asphalt speckle texture -- tiny snapped squares, not soft dots
+  // asphalt speckle texture
   for (const sp of w.decor.roadSpeckles) {
-    ctx.fillStyle = `rgba(255,255,255,${sp.a * 2.2})`;
-    ctx.fillRect(pxSnap(sp.x), pxSnap(sp.y), PX, PX);
+    ctx.fillStyle = `rgba(255,255,255,${sp.a})`;
+    ctx.beginPath();
+    ctx.arc(sp.x, sp.y, sp.r, 0, Math.PI * 2);
+    ctx.fill();
   }
 
-  // a small manhole-style accent marks each real 4-way intersection
+  // a drain cover marks each real 4-way intersection
   for (let c = 0; c < CORRIDOR_COUNT; c++) {
     const cx = corridorX0(c) + HOUSE_W + YARD_W + STREET_W / 2;
     for (const band of w.crossStreets) {
       const cy = band.y0 + STREET_W / 2;
-      pxBlob(cx, cy, 10, '#6a6660', '#1c1e20');
+      const grad = ctx.createRadialGradient(cx - 3, cy - 3, 1, cx, cy, 11);
+      grad.addColorStop(0, '#7c7870');
+      grad.addColorStop(1, '#3a3834');
+      ctx.fillStyle = grad;
+      ctx.beginPath(); ctx.arc(cx, cy, 11, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = 'rgba(0,0,0,0.4)';
+      ctx.lineWidth = 1;
+      for (let a = 0; a < Math.PI; a += Math.PI / 4) {
+        ctx.beginPath();
+        ctx.moveTo(cx + Math.cos(a) * 8, cy + Math.sin(a) * 8);
+        ctx.lineTo(cx - Math.cos(a) * 8, cy - Math.sin(a) * 8);
+        ctx.stroke();
+      }
     }
   }
 }
@@ -1023,83 +1193,134 @@ function shadeColor(hex, amt) {
 }
 
 function drawRoofGable(roofX0, roofX1, r, flip, pal) {
-  const ridgeX = pxSnap((roofX0 + roofX1) / 2);
-  // two-tone slopes (consistent light-from-the-left) are what actually
-  // reads as a pitched roof from directly above, rather than a flat fill
-  pxRect(roofX0, r.y, ridgeX - roofX0, r.h, shadeColor(pal.roof, 26));
-  pxRect(ridgeX, r.y, roofX1 - ridgeX, r.h, shadeColor(pal.roof, -28));
-  // blocky shingle course marks, stamped instead of stroked
-  const dark = shadeColor(pal.roof, -45);
-  for (let ly = r.y + 6; ly < r.y + r.h - 3; ly += 9) {
-    for (let lx = roofX0 + 3; lx < roofX1 - 3; lx += 8) {
-      pxRect(lx, ly, PX, PX, dark);
+  const ridgeX = (roofX0 + roofX1) / 2;
+  // two-tone slopes, each with its own subtle gradient (light-from-the-left)
+  // so the pitch reads clearly while still feeling painted, not flat-filled
+  const leftGrad = ctx.createLinearGradient(roofX0, 0, ridgeX, 0);
+  leftGrad.addColorStop(0, shadeColor(pal.roof, 40));
+  leftGrad.addColorStop(1, shadeColor(pal.roof, 14));
+  ctx.fillStyle = leftGrad;
+  ctx.fillRect(roofX0, r.y, ridgeX - roofX0, r.h);
+  const rightGrad = ctx.createLinearGradient(ridgeX, 0, roofX1, 0);
+  rightGrad.addColorStop(0, shadeColor(pal.roof, -14));
+  rightGrad.addColorStop(1, shadeColor(pal.roof, -34));
+  ctx.fillStyle = rightGrad;
+  ctx.fillRect(ridgeX, r.y, roofX1 - ridgeX, r.h);
+  // individual shingle course lines, offset row to row like real courses
+  ctx.strokeStyle = 'rgba(0,0,0,0.22)';
+  ctx.lineWidth = 1;
+  let rowFlip = false;
+  for (let ly = r.y + 6; ly < r.y + r.h - 3; ly += 6) {
+    ctx.beginPath();
+    ctx.moveTo(roofX0 + 2, ly); ctx.lineTo(roofX1 - 2, ly);
+    ctx.stroke();
+    for (let lx = roofX0 + (rowFlip ? 6 : 3); lx < roofX1 - 3; lx += 7) {
+      if (Math.abs(lx - ridgeX) < 2) continue;
+      ctx.beginPath(); ctx.moveTo(lx, ly); ctx.lineTo(lx, ly + 6); ctx.stroke();
     }
+    rowFlip = !rowFlip;
   }
-  pxRect(ridgeX - PX, r.y, PX * 2, r.h, shadeColor(pal.roof, 55));
+  // ridge cap + gutter line along the eaves
+  ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+  ctx.lineWidth = 2.4;
+  ctx.beginPath();
+  ctx.moveTo(ridgeX, r.y + 2); ctx.lineTo(ridgeX, r.y + r.h - 2);
+  ctx.stroke();
+  ctx.strokeStyle = 'rgba(0,0,0,0.28)';
+  ctx.lineWidth = 1.4;
+  ctx.beginPath(); ctx.moveTo(roofX0 + 1, r.y + 1); ctx.lineTo(roofX0 + 1, r.y + r.h - 1); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(roofX1 - 1, r.y + 1); ctx.lineTo(roofX1 - 1, r.y + r.h - 1); ctx.stroke();
 }
 
 function drawRoofFlat(roofX0, roofX1, r, pal) {
-  pxRect(roofX0, r.y, roofX1 - roofX0, r.h, pal.roof);
-  // gravel/tar texture speckle, snapped to the pixel grid
-  const light = shadeColor(pal.roof, 30);
-  for (let ly = r.y + 5; ly < r.y + r.h; ly += 8) {
-    for (let lx = roofX0 + 4; lx < roofX1 - 3; lx += 9) {
-      if ((Math.round(lx / PX) + Math.round(ly / PX)) % 3 === 0) pxRect(lx, ly, PX, PX, light);
+  const grad = ctx.createLinearGradient(roofX0, r.y, roofX1, r.y);
+  grad.addColorStop(0, shadeColor(pal.roof, 12));
+  grad.addColorStop(1, shadeColor(pal.roof, -10));
+  ctx.fillStyle = grad;
+  ctx.fillRect(roofX0, r.y, roofX1 - roofX0, r.h);
+  // gravel/tar texture speckle
+  ctx.fillStyle = 'rgba(255,255,255,0.1)';
+  for (let ly = r.y + 5; ly < r.y + r.h; ly += 7) {
+    for (let lx = roofX0 + 3; lx < roofX1 - 2; lx += 6) {
+      if ((lx + ly) % 3 === 0) ctx.fillRect(lx, ly, 2, 2);
     }
   }
-  pxOutlineRect(roofX0, r.y, roofX1 - roofX0, r.h, shadeColor(pal.roof, 45));
+  // parapet edge with an inner shadow lip
+  ctx.strokeStyle = 'rgba(255,255,255,0.4)';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(roofX0 + 1, r.y + 1, roofX1 - roofX0 - 2, r.h - 2);
+  ctx.strokeStyle = 'rgba(0,0,0,0.18)';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(roofX0 + 4, r.y + 4, roofX1 - roofX0 - 8, r.h - 8);
 }
 
 function drawRoofTile(roofX0, roofX1, r, flip, pal) {
-  const ridgeX = pxSnap((roofX0 + roofX1) / 2);
-  pxRect(roofX0, r.y, ridgeX - roofX0, r.h, shadeColor(pal.roof, 22));
-  pxRect(ridgeX, r.y, roofX1 - ridgeX, r.h, shadeColor(pal.roof, -24));
-  // terracotta scalloped tile rows, as blocky stamped bumps
-  const light = shadeColor(pal.roof, 38);
-  for (let ly = r.y + 5; ly < r.y + r.h - 4; ly += 8) {
-    for (let lx = roofX0 + 3; lx < roofX1 - 3; lx += 7) {
-      pxRect(lx, ly, PX * 2, PX, light);
+  const ridgeX = (roofX0 + roofX1) / 2;
+  const leftGrad = ctx.createLinearGradient(roofX0, 0, ridgeX, 0);
+  leftGrad.addColorStop(0, shadeColor(pal.roof, 34));
+  leftGrad.addColorStop(1, shadeColor(pal.roof, 10));
+  ctx.fillStyle = leftGrad;
+  ctx.fillRect(roofX0, r.y, ridgeX - roofX0, r.h);
+  const rightGrad = ctx.createLinearGradient(ridgeX, 0, roofX1, 0);
+  rightGrad.addColorStop(0, shadeColor(pal.roof, -12));
+  rightGrad.addColorStop(1, shadeColor(pal.roof, -30));
+  ctx.fillStyle = rightGrad;
+  ctx.fillRect(ridgeX, r.y, roofX1 - ridgeX, r.h);
+  // terracotta scalloped tile rows -- individual barrel-tile bumps
+  for (let ly = r.y + 5; ly < r.y + r.h - 4; ly += 7) {
+    for (let lx = roofX0 + 3; lx < roofX1 - 3; lx += 6.5) {
+      const shadow = lx < ridgeX ? 'rgba(0,0,0,0.12)' : 'rgba(255,255,255,0.14)';
+      ctx.fillStyle = shadow;
+      ctx.beginPath();
+      ctx.arc(lx, ly, 2.4, 0, Math.PI, true);
+      ctx.fill();
     }
   }
-  pxRect(ridgeX - PX, r.y, PX * 2, r.h, shadeColor(pal.roof, 55));
+  ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+  ctx.lineWidth = 2.4;
+  ctx.beginPath();
+  ctx.moveTo(ridgeX, r.y + 2); ctx.lineTo(ridgeX, r.y + r.h - 2);
+  ctx.stroke();
 }
 
 function drawRoofAframe(roofX0, roofX1, r, flip, pal) {
   const apexX = flip ? roofX1 - 4 : roofX0 + 4;
   const baseX = flip ? roofX0 : roofX1;
-  // stepped bands from the tucked-in apex (dark) to the exposed base
-  // (light) -- flat tone steps instead of a smooth gradient
-  const bands = 4;
-  for (let i = 0; i < bands; i++) {
-    const t0 = i / bands, t1 = (i + 1) / bands;
-    const bx0 = apexX + (baseX - apexX) * t0, bx1 = apexX + (baseX - apexX) * t1;
-    const bh0 = (r.h / 2) * t0, bh1 = (r.h / 2) * t1;
-    const shade = -30 + i * ((30 - -30) / (bands - 1));
-    ctx.fillStyle = shadeColor(pal.roof, shade);
-    ctx.beginPath();
-    if (!flip) {
-      ctx.moveTo(bx0, r.y + r.h / 2 - bh0); ctx.lineTo(bx1, r.y + r.h / 2 - bh1);
-      ctx.lineTo(bx1, r.y + r.h / 2 + bh1); ctx.lineTo(bx0, r.y + r.h / 2 + bh0);
-    } else {
-      ctx.moveTo(bx0, r.y + r.h / 2 - bh0); ctx.lineTo(bx1, r.y + r.h / 2 - bh1);
-      ctx.lineTo(bx1, r.y + r.h / 2 + bh1); ctx.lineTo(bx0, r.y + r.h / 2 + bh0);
-    }
-    ctx.closePath();
-    ctx.fill();
-  }
-  // blocky rafter marks
-  const dark = shadeColor(pal.roof, -50);
-  for (let t = 0.15; t < 1; t += 0.14) {
-    const bx = apexX + (baseX - apexX) * t;
-    pxRect(bx, r.y + r.h * t - PX / 2, PX, PX, dark);
-  }
-  ctx.fillStyle = shadeColor(pal.roof, 55);
+  // shade from the tucked-in apex (dark) out to the exposed base (light)
+  // so the single slope still reads as sloped, not flat
+  const slopeGrad = ctx.createLinearGradient(apexX, r.y + r.h / 2, baseX, r.y + r.h / 2);
+  slopeGrad.addColorStop(0, shadeColor(pal.roof, -32));
+  slopeGrad.addColorStop(1, shadeColor(pal.roof, 26));
+  ctx.fillStyle = slopeGrad;
   ctx.beginPath();
-  ctx.moveTo(apexX, r.y + r.h / 2 - 3); ctx.lineTo(apexX, r.y + r.h / 2 + 3);
-  ctx.lineTo(baseX, r.y + 3); ctx.lineTo(baseX, r.y - 3);
-  ctx.closePath(); ctx.fill();
-  // small peak window, blocky
-  pxRect(apexX + (flip ? -14 : 8), r.y + r.h / 2 - PX * 1.5, PX * 3, PX * 3, '#cfe8f0');
+  ctx.moveTo(apexX, r.y + r.h / 2);
+  ctx.lineTo(baseX, r.y);
+  ctx.lineTo(baseX, r.y + r.h);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(0,0,0,0.24)';
+  ctx.lineWidth = 1;
+  for (let t = 0.1; t < 1; t += 0.09) {
+    ctx.beginPath();
+    ctx.moveTo(apexX, r.y + r.h / 2);
+    ctx.lineTo(baseX, r.y + r.h * t);
+    ctx.stroke();
+  }
+  ctx.strokeStyle = 'rgba(255,255,255,0.35)';
+  ctx.lineWidth = 1.8;
+  ctx.beginPath();
+  ctx.moveTo(apexX, r.y + r.h / 2); ctx.lineTo(baseX, r.y);
+  ctx.moveTo(apexX, r.y + r.h / 2); ctx.lineTo(baseX, r.y + r.h);
+  ctx.stroke();
+  // small peak window with mullion
+  const wx = apexX + (flip ? -10 : 10), wy = r.y + r.h / 2;
+  ctx.fillStyle = 'rgba(200,225,235,0.85)';
+  ctx.beginPath();
+  ctx.arc(wx, wy, 3.5, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(255,255,255,0.7)';
+  ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(wx - 3, wy); ctx.lineTo(wx + 3, wy); ctx.moveTo(wx, wy - 3); ctx.lineTo(wx, wy + 3); ctx.stroke();
 }
 
 // Houses are drawn in a 3/4 top-down style (a la classic Zelda/Stardew towns):
@@ -1133,29 +1354,62 @@ function drawHouse(h) {
   else drawRoofGable(roofX0, roofX1, r, flip, pal);
 
   // --- facade zone (tall front wall facing the street) ---
-  pxRect(facadeX0, r.y, facadeW, r.h, pal.siding);
-  const sidingDark = shadeColor(pal.siding, -14);
-  for (let ly = r.y + 8; ly < r.y + r.h - 6; ly += 9) {
-    pxRect(facadeX0 + 2, ly, facadeW - 4, PX, sidingDark);
+  ctx.fillStyle = pal.siding;
+  ctx.fillRect(facadeX0, r.y, facadeW, r.h);
+  ctx.strokeStyle = 'rgba(0,0,0,0.08)';
+  ctx.lineWidth = 1;
+  for (let ly = r.y + 8; ly < r.y + r.h - 6; ly += 8) {
+    ctx.beginPath();
+    ctx.moveTo(facadeX0 + 2, ly);
+    ctx.lineTo(facadeX1 - 2, ly);
+    ctx.stroke();
   }
-  // eave overhang shadow where the roof meets the facade -- stepped bands
+  // foundation strip along the bottom for grounding
+  const foundGrad = ctx.createLinearGradient(0, r.y + r.h - 8, 0, r.y + r.h);
+  foundGrad.addColorStop(0, 'rgba(0,0,0,0)');
+  foundGrad.addColorStop(1, 'rgba(0,0,0,0.22)');
+  ctx.fillStyle = foundGrad;
+  ctx.fillRect(facadeX0, r.y + r.h - 8, facadeW, 8);
+  // eave overhang shadow where the roof meets the facade
   const eaveX = flip ? facadeX1 : facadeX0;
-  const shadowSteps = [[0.34, 0], [0.2, 3], [0.1, 6]];
-  for (const [alpha, off] of shadowSteps) {
-    pxRect(flip ? eaveX - off - PX : eaveX + off, r.y, PX, r.h, `rgba(0,0,0,${alpha})`);
-  }
-  pxRect(eaveX - (flip ? PX : 0), r.y, PX, r.h, pal.trim);
+  const shadowGrad = ctx.createLinearGradient(
+    flip ? eaveX : eaveX, 0, flip ? eaveX - 10 : eaveX + 10, 0
+  );
+  shadowGrad.addColorStop(0, 'rgba(0,0,0,0.32)');
+  shadowGrad.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = shadowGrad;
+  ctx.fillRect(flip ? eaveX - 10 : eaveX, r.y, 10, r.h);
+  ctx.strokeStyle = pal.trim;
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(eaveX, r.y); ctx.lineTo(eaveX, r.y + r.h);
+  ctx.stroke();
   // gable-end trim strip along the top edge of the facade (hints a side wall)
-  pxRect(facadeX0, r.y, facadeW, 5, 'rgba(0,0,0,0.12)');
+  ctx.fillStyle = 'rgba(0,0,0,0.12)';
+  ctx.fillRect(facadeX0, r.y, facadeW, 5);
 
   // chimney, mounted on the roof zone
   if (h.hasChimney) {
     const chX = flip ? roofX1 - 20 : roofX0 + 8;
-    pxRect(chX, r.y + 6, 14, 18, '#8a5a4a');
-    pxRect(chX - 2, r.y + 4, 18, 5, '#6b4238');
-    pxBlob(chX + 6, r.y - 4, 4, 'rgba(255,255,255,0.45)', null);
-    pxBlob(chX + 10, r.y - 11, 5.5, 'rgba(255,255,255,0.32)', null);
-    pxBlob(chX + 15, r.y - 19, 7, 'rgba(255,255,255,0.2)', null);
+    const chGrad = ctx.createLinearGradient(chX, 0, chX + 14, 0);
+    chGrad.addColorStop(0, shadeColor('#8a5a4a', 14));
+    chGrad.addColorStop(1, shadeColor('#8a5a4a', -14));
+    ctx.fillStyle = chGrad;
+    ctx.fillRect(chX, r.y + 6, 14, 18);
+    ctx.fillStyle = '#6b4238';
+    ctx.fillRect(chX - 2, r.y + 4, 18, 5);
+    ctx.fillStyle = 'rgba(255,255,255,0.4)';
+    ctx.beginPath();
+    ctx.ellipse(chX + 6, r.y - 4, 4, 3.4, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,0.28)';
+    ctx.beginPath();
+    ctx.ellipse(chX + 10, r.y - 11, 5.5, 4.4, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,0.18)';
+    ctx.beginPath();
+    ctx.ellipse(chX + 15, r.y - 19, 7, 5.5, 0, 0, Math.PI * 2);
+    ctx.fill();
   }
 
   // windows, within the facade zone
@@ -1168,38 +1422,75 @@ function drawHouse(h) {
   // door with frame, panels, awning, knob
   const doorW = 20, doorH = 42;
   const dx = h.doorX, dy = r.y + r.h / 2 - doorH / 2;
-  pxRect(dx - 3, dy - 3, doorW + 6, doorH + 3, pal.trim);
-  pxRect(dx, dy, doorW, doorH, pal.door);
-  pxOutlineRect(dx + 3, dy + 4, doorW - 6, doorH * 0.42, 'rgba(255,255,255,0.2)');
-  pxOutlineRect(dx + 3, dy + doorH * 0.52, doorW - 6, doorH * 0.42, 'rgba(255,255,255,0.2)');
-  pxRect(flip ? dx + 3 : dx + doorW - 5, dy + doorH / 2 - PX / 2, PX, PX, '#e8c95a');
-  // awning -- flat blocky canopy instead of a smooth ellipse arc
-  pxRect(dx - 5, dy - 6, doorW + 10, PX, pal.roof);
-  pxRect(dx - 3, dy - 3, doorW + 6, PX, shadeColor(pal.roof, -18));
+  ctx.fillStyle = pal.trim;
+  ctx.fillRect(dx - 3, dy - 3, doorW + 6, doorH + 3);
+  const doorGrad = ctx.createLinearGradient(dx, 0, dx + doorW, 0);
+  doorGrad.addColorStop(0, shadeColor(pal.door, 10));
+  doorGrad.addColorStop(1, shadeColor(pal.door, -10));
+  ctx.fillStyle = doorGrad;
+  ctx.fillRect(dx, dy, doorW, doorH);
+  ctx.strokeStyle = 'rgba(255,255,255,0.18)';
+  ctx.lineWidth = 1.2;
+  ctx.strokeRect(dx + 3, dy + 4, doorW - 6, doorH * 0.42);
+  ctx.strokeRect(dx + 3, dy + doorH * 0.52, doorW - 6, doorH * 0.42);
+  ctx.fillStyle = '#e8c95a';
+  ctx.beginPath();
+  ctx.arc(flip ? dx + 4 : dx + doorW - 4, dy + doorH / 2, 1.6, 0, Math.PI * 2);
+  ctx.fill();
+  // awning with a soft underside shadow
+  ctx.fillStyle = pal.roof;
+  ctx.beginPath();
+  ctx.ellipse(dx + doorW / 2, dy - 3, doorW / 2 + 5, 6, 0, Math.PI, 0);
+  ctx.fill();
+  ctx.fillStyle = 'rgba(0,0,0,0.18)';
+  ctx.beginPath();
+  ctx.ellipse(dx + doorW / 2, dy - 1, doorW / 2 + 4, 3, 0, 0, Math.PI);
+  ctx.fill();
   // porch step
-  pxRect(dx - 4, dy + doorH, doorW + 8, 6, '#bdb8ab');
-  pxRect(dx - 4, dy + doorH, doorW + 8, PX, '#9a9587');
+  const stepGrad = ctx.createLinearGradient(0, dy + doorH, 0, dy + doorH + 6);
+  stepGrad.addColorStop(0, '#cfcabd');
+  stepGrad.addColorStop(1, '#a29c8c');
+  ctx.fillStyle = stepGrad;
+  ctx.fillRect(dx - 4, dy + doorH, doorW + 8, 6);
 }
 
 function drawWindow(wx, wy, ww, wh, trim, hasFlowerBox) {
-  pxRect(wx - 3, wy - 3, ww + 6, wh + 6, trim);
-  // flat two-tone "glass" split instead of a smooth gradient
-  pxRect(wx, wy, ww, wh * 0.5, '#e3f4fb');
-  pxRect(wx, wy + wh * 0.5, ww, wh * 0.5, '#9cc9dc');
-  pxRect(wx + ww / 2 - PX / 2, wy, PX, wh, '#ffffff');
-  pxRect(wx, wy + wh / 2 - PX / 2, ww, PX, '#ffffff');
+  ctx.fillStyle = trim;
+  ctx.fillRect(wx - 3, wy - 3, ww + 6, wh + 6);
+  const glass = ctx.createLinearGradient(wx, wy, wx, wy + wh);
+  glass.addColorStop(0, '#e3f4fb');
+  glass.addColorStop(1, '#9cc9dc');
+  ctx.fillStyle = glass;
+  ctx.fillRect(wx, wy, ww, wh);
+  ctx.fillStyle = 'rgba(255,255,255,0.35)';
+  ctx.beginPath();
+  ctx.moveTo(wx + 2, wy + 2); ctx.lineTo(wx + ww * 0.4, wy + 2); ctx.lineTo(wx + 2, wy + wh * 0.5);
+  ctx.closePath(); ctx.fill();
+  ctx.strokeStyle = '#ffffff';
+  ctx.lineWidth = 1.6;
+  ctx.beginPath();
+  ctx.moveTo(wx + ww / 2, wy); ctx.lineTo(wx + ww / 2, wy + wh);
+  ctx.moveTo(wx, wy + wh / 2); ctx.lineTo(wx + ww, wy + wh / 2);
+  ctx.stroke();
   if (hasFlowerBox) {
-    pxRect(wx - 2, wy + wh + 2, ww + 4, 5, '#7a5233');
+    ctx.fillStyle = '#7a5233';
+    ctx.fillRect(wx - 2, wy + wh + 2, ww + 4, 5);
     const dots = ['#e05a5a', '#f0c93a', '#e05a5a'];
     dots.forEach((c, i) => {
-      pxBlob(wx + 4 + i * (ww - 8) / 2, wy + wh + 1, PX * 1.2, c, null);
+      ctx.fillStyle = c;
+      ctx.beginPath();
+      ctx.arc(wx + 4 + i * (ww - 8) / 2, wy + wh + 1, 2.4, 0, Math.PI * 2);
+      ctx.fill();
     });
   }
 }
 
 function drawBush(b) {
   const cx = b.x + b.w / 2, cy = b.y + b.h / 2;
-  pxBlob(cx + PX, cy + b.h / 2 - PX, b.w / 2, 'rgba(0,0,0,0.15)', null);
+  ctx.fillStyle = 'rgba(0,0,0,0.15)';
+  ctx.beginPath();
+  ctx.ellipse(cx + 2, cy + b.h / 2 - 2, b.w / 2, b.h / 4, 0, 0, Math.PI * 2);
+  ctx.fill();
   const puffs = [
     { dx: 0, dy: 0, r: b.w / 2.1, c: '#2f6b34' },
     { dx: -b.w / 3, dy: b.h / 5, r: b.w / 2.8, c: '#356f38' },
@@ -1207,7 +1498,13 @@ function drawBush(b) {
     { dx: -b.w / 8, dy: -b.h / 5, r: b.w / 3.2, c: '#4a8a4a' },
   ];
   for (const p of puffs) {
-    pxBlob(cx + p.dx, cy + p.dy, p.r, p.c, '#1c3d1f');
+    const grad = ctx.createRadialGradient(cx + p.dx - p.r * 0.3, cy + p.dy - p.r * 0.3, 1, cx + p.dx, cy + p.dy, p.r * 1.1);
+    grad.addColorStop(0, shadeColor(p.c, 28));
+    grad.addColorStop(1, p.c);
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.ellipse(cx + p.dx, cy + p.dy, p.r, p.r * 0.82, 0, 0, Math.PI * 2);
+    ctx.fill();
   }
 }
 
