@@ -45,21 +45,60 @@ const ASSET_PATHS = {
   },
 };
 
+// Per-breed animation frame sets (move/sleep/bark), cut from the same sheet
+// as the static dogs.* sprites. Coverage varies by breed -- some source rows
+// had touching/overlapping frames that couldn't be cleanly separated -- so
+// dogAnimFrames() below falls back gracefully when a category is missing.
+const DOG_ANIM = {
+  chihuahua: { move: ['assets/dogs/anim/chihuahua_move_0.png', 'assets/dogs/anim/chihuahua_move_1.png'], sleep: ['assets/dogs/anim/chihuahua_sleep_0.png', 'assets/dogs/anim/chihuahua_sleep_1.png'], bark: ['assets/dogs/anim/chihuahua_bark_0.png'] },
+  frenchbulldog: { move: ['assets/dogs/anim/frenchbulldog_move_0.png', 'assets/dogs/anim/frenchbulldog_move_1.png'], sleep: ['assets/dogs/anim/frenchbulldog_sleep_0.png', 'assets/dogs/anim/frenchbulldog_sleep_1.png'], bark: ['assets/dogs/anim/frenchbulldog_bark_0.png'] },
+  labrador: { move: ['assets/dogs/anim/labrador_move_0.png'], sleep: ['assets/dogs/anim/labrador_sleep_0.png'], bark: [] },
+  yorkie: { move: ['assets/dogs/anim/yorkie_move_0.png', 'assets/dogs/anim/yorkie_move_1.png'], sleep: ['assets/dogs/anim/yorkie_sleep_0.png'], bark: ['assets/dogs/anim/yorkie_bark_0.png'] },
+  shihtzu: { move: ['assets/dogs/anim/shihtzu_move_0.png', 'assets/dogs/anim/shihtzu_move_1.png'], sleep: ['assets/dogs/anim/shihtzu_sleep_0.png'], bark: ['assets/dogs/anim/shihtzu_bark_0.png'] },
+  goldenretriever: { move: ['assets/dogs/anim/goldenretriever_move_0.png'], sleep: ['assets/dogs/anim/goldenretriever_sleep_0.png'], bark: [] },
+  shepherd: { move: ['assets/dogs/anim/shepherd_move_0.png', 'assets/dogs/anim/shepherd_move_1.png'], sleep: ['assets/dogs/anim/shepherd_sleep_0.png'], bark: [] },
+  pitbull: { move: ['assets/dogs/anim/pitbull_move_0.png', 'assets/dogs/anim/pitbull_move_1.png'], sleep: ['assets/dogs/anim/pitbull_sleep_0.png'], bark: [] },
+  goldendoodle: { move: ['assets/dogs/anim/goldendoodle_move_0.png', 'assets/dogs/anim/goldendoodle_move_1.png'], sleep: ['assets/dogs/anim/goldendoodle_sleep_0.png'], bark: [] },
+  dachshund: { move: ['assets/dogs/anim/dachshund_move_0.png', 'assets/dogs/anim/dachshund_move_1.png'], sleep: ['assets/dogs/anim/dachshund_sleep_0.png', 'assets/dogs/anim/dachshund_sleep_1.png'], bark: [] },
+};
+
 const IMAGES = {};
+const DOG_ANIM_IMAGES = {};
 function preloadImages(onDone) {
   const entries = [];
   for (const group in ASSET_PATHS) {
-    for (const key in ASSET_PATHS[group]) entries.push([`${group}.${key}`, ASSET_PATHS[group][key]]);
+    for (const key in ASSET_PATHS[group]) {
+      const fullKey = `${group}.${key}`;
+      entries.push({ src: ASSET_PATHS[group][key], set: (img) => { IMAGES[fullKey] = img; } });
+    }
+  }
+  for (const breed in DOG_ANIM) {
+    DOG_ANIM_IMAGES[breed] = {};
+    for (const cat in DOG_ANIM[breed]) {
+      const arr = DOG_ANIM_IMAGES[breed][cat] = [];
+      DOG_ANIM[breed][cat].forEach((src, i) => {
+        entries.push({ src, set: (img) => { arr[i] = img; } });
+      });
+    }
   }
   let remaining = entries.length;
   const settle = () => { remaining--; if (remaining <= 0) onDone(); };
-  entries.forEach(([fullKey, src]) => {
+  entries.forEach(({ src, set }) => {
     const img = new Image();
-    img.onload = settle;
+    img.onload = () => { set(img); settle(); };
     img.onerror = settle;
     img.src = src;
-    IMAGES[fullKey] = img;
   });
+}
+// Frames for a breed/category, falling back to 'move' then the single
+// static dogs.* sprite when that category wasn't cleanly extractable.
+function dogAnimFrames(breedKey, cat) {
+  const forCat = DOG_ANIM_IMAGES[breedKey] && DOG_ANIM_IMAGES[breedKey][cat];
+  if (forCat && forCat.length) return forCat;
+  const move = DOG_ANIM_IMAGES[breedKey] && DOG_ANIM_IMAGES[breedKey].move;
+  if (move && move.length) return move;
+  const staticImg = IMAGES[`dogs.${breedKey}`];
+  return staticImg ? [staticImg] : [];
 }
 function drawSprite(img, x, y, dispH, anchor) {
   // anchor: 'center' (default) or 'bottom' (image bottom edge sits at y)
@@ -80,16 +119,16 @@ function drawSprite(img, x, y, dispH, anchor) {
    'sentry' (stands still, sweeps gaze), 'sleepy' (naps on a timer, blind
    while asleep), 'erratic' (random direction changes) */
 const BREEDS = {
-  chihuahua:   { name: 'Chihuahua',              size: 0.60, range: 83,  nearRadius: 22, coneDeg: 50, speed: 40, fillRate: 0.50, behavior: 'pace' },
-  dachshund:   { name: 'Dachshund',              size: 0.80, range: 98,  nearRadius: 26, coneDeg: 50, speed: 24, fillRate: 0.55, behavior: 'pace' },
-  shihtzu:     { name: 'Shih Tzu',               size: 0.75, range: 90,  nearRadius: 24, coneDeg: 50, speed: 18, fillRate: 0.45, behavior: 'sleepy' },
-  frenchbulldog:{ name: 'French Bulldog',        size: 0.90, range: 113, nearRadius: 30, coneDeg: 60, speed: 20, fillRate: 0.60, behavior: 'sentry' },
-  yorkie:      { name: 'Yorkshire Terrier',      size: 0.65, range: 128, nearRadius: 34, coneDeg: 60, speed: 34, fillRate: 0.70, behavior: 'erratic' },
-  labrador:    { name: 'Labrador Retriever',     size: 1.05, range: 143, nearRadius: 38, coneDeg: 60, speed: 34, fillRate: 0.65, behavior: 'pace' },
-  goldendoodle:{ name: 'Goldendoodle',           size: 1.00, range: 135, nearRadius: 36, coneDeg: 65, speed: 32, fillRate: 0.70, behavior: 'erratic' },
-  goldenretriever:{ name: 'Golden Retriever',    size: 1.05, range: 158, nearRadius: 42, coneDeg: 65, speed: 34, fillRate: 0.75, behavior: 'sentry' },
-  shepherd:    { name: 'German Shepherd',        size: 1.10, range: 183, nearRadius: 49, coneDeg: 70, speed: 48, fillRate: 0.85, behavior: 'pace' },
-  pitbull:     { name: 'American Pit Bull Terrier', size: 1.15, range: 203, nearRadius: 54, coneDeg: 70, speed: 46, fillRate: 0.90, behavior: 'sentry' },
+  chihuahua:   { name: 'Chihuahua',              size: 0.60, range: 108, nearRadius: 31, coneDeg: 50, speed: 40, fillRate: 0.80, behavior: 'pace' },
+  dachshund:   { name: 'Dachshund',              size: 0.80, range: 127, nearRadius: 36, coneDeg: 50, speed: 24, fillRate: 0.88, behavior: 'pace' },
+  shihtzu:     { name: 'Shih Tzu',               size: 0.75, range: 117, nearRadius: 34, coneDeg: 50, speed: 18, fillRate: 0.72, behavior: 'sleepy' },
+  frenchbulldog:{ name: 'French Bulldog',        size: 0.90, range: 147, nearRadius: 42, coneDeg: 60, speed: 20, fillRate: 0.96, behavior: 'sentry' },
+  yorkie:      { name: 'Yorkshire Terrier',      size: 0.65, range: 166, nearRadius: 48, coneDeg: 60, speed: 34, fillRate: 1.12, behavior: 'erratic' },
+  labrador:    { name: 'Labrador Retriever',     size: 1.05, range: 186, nearRadius: 53, coneDeg: 60, speed: 34, fillRate: 1.04, behavior: 'pace' },
+  goldendoodle:{ name: 'Goldendoodle',           size: 1.00, range: 176, nearRadius: 50, coneDeg: 65, speed: 32, fillRate: 1.12, behavior: 'erratic' },
+  goldenretriever:{ name: 'Golden Retriever',    size: 1.05, range: 205, nearRadius: 59, coneDeg: 65, speed: 34, fillRate: 1.20, behavior: 'sentry' },
+  shepherd:    { name: 'German Shepherd',        size: 1.10, range: 238, nearRadius: 69, coneDeg: 70, speed: 48, fillRate: 1.36, behavior: 'pace' },
+  pitbull:     { name: 'American Pit Bull Terrier', size: 1.15, range: 264, nearRadius: 76, coneDeg: 70, speed: 46, fillRate: 1.44, behavior: 'sentry' },
 };
 
 /* House siding/roof/door/trim color variants, cycled per house for street variety */
@@ -357,6 +396,8 @@ function makeHouse(side, topY, cfg, index) {
       sweepDir: 1,
       sweepT: Math.random() * Math.PI * 2,
       seen: false,
+      animTimer: Math.random() * 0.18,
+      animFrame: Math.random() < 0.5 ? 0 : 1,
     };
     dogs.push(dog);
   }
@@ -507,6 +548,10 @@ function updatePlayer(dt) {
 
 function updateDog(dog, house, dt, w) {
   const breed = dog.breed;
+
+  dog.animTimer += dt;
+  const animDur = dog.state === 'asleep' ? 0.55 : 0.18;
+  if (dog.animTimer > animDur) { dog.animTimer = 0; dog.animFrame = 1 - dog.animFrame; }
 
   if (breed.behavior === 'sleepy') {
     if (dog.state === 'asleep') {
@@ -1106,8 +1151,11 @@ function drawVisionCone(dog) {
 function drawDog(dog) {
   const breed = dog.breed;
   const s = breed.size;
-  const img = IMAGES[`dogs.${dog.breedKey}`];
   const dispH = 34 * s;
+  const alerted = dog.suspicion > 0.5;
+  const cat = dog.state === 'asleep' ? 'sleep' : (alerted ? 'bark' : 'move');
+  const frames = dogAnimFrames(dog.breedKey, cat);
+  const img = frames.length ? frames[dog.animFrame % frames.length] : IMAGES[`dogs.${dog.breedKey}`];
 
   // ground shadow
   ctx.fillStyle = 'rgba(0,0,0,0.22)';
