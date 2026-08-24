@@ -1,0 +1,2 @@
+# sneaky-mail
+Stealth Game
