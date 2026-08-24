@@ -814,6 +814,19 @@ function drawMailbox(mb) {
   }
 }
 
+// Orients a side-view sprite (drawn facing +x) toward `angle` without ever
+// flipping it upside-down: rotating 180° for a leftward angle would mirror
+// both axes, so a leftward angle instead mirrors horizontally (scale -1,1)
+// and rotates by the much smaller (PI - angle) to reach the same facing.
+function rotateFacing(angle) {
+  if (Math.cos(angle) < 0) {
+    ctx.scale(-1, 1);
+    ctx.rotate(Math.PI - angle);
+  } else {
+    ctx.rotate(angle);
+  }
+}
+
 function drawVisionCone(dog) {
   const breed = dog.breed;
   const half = (breed.coneDeg * Math.PI / 180) / 2;
@@ -853,7 +866,7 @@ function drawDog(dog) {
   ctx.translate(dog.x, dog.y);
 
   if (dog.state === 'asleep') {
-    ctx.rotate(dog.angle > Math.PI / 2 || dog.angle < -Math.PI / 2 ? Math.PI : 0);
+    rotateFacing(dog.angle);
     ctx.fillStyle = breed.dark;
     ctx.beginPath();
     ctx.ellipse(0, 3 * s, 16 * s, 9 * s, 0, 0, Math.PI * 2);
@@ -874,7 +887,7 @@ function drawDog(dog) {
     return;
   }
 
-  ctx.rotate(dog.angle);
+  rotateFacing(dog.angle);
   const wag = Math.sin(performance.now() / 180 + dog.x * 0.3) * 0.5;
 
   // legs (peek out from under the body)
@@ -985,7 +998,7 @@ function drawPlayer(p) {
 
   ctx.save();
   ctx.translate(p.x, p.y);
-  ctx.rotate(p.facing);
+  rotateFacing(p.facing);
 
   const bodyColor = p.sneaking ? '#2b6e4f' : '#3f9463';
   const bodyDark = p.sneaking ? '#1d4c36' : '#2c6d48';
