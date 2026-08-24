@@ -26,11 +26,21 @@ const BREEDS = {
 
 /* House siding/roof/door/trim color variants, cycled per house for street variety */
 const HOUSE_PALETTES = [
-  { siding: '#d8c39a', roof: '#8a4a3a', door: '#5a3a22', trim: '#a9865a' },
-  { siding: '#c9d6c0', roof: '#465264', door: '#3a2a1a', trim: '#8a9a80' },
-  { siding: '#e0c9b0', roof: '#6a3a3a', door: '#2e2a26', trim: '#b09070' },
-  { siding: '#cfe0d8', roof: '#3a4a3a', door: '#4a2a1a', trim: '#8fae9d' },
-  { siding: '#e8dcc0', roof: '#5a4a6a', door: '#3a2a3a', trim: '#c0b090' },
+  { siding: '#d8c39a', roof: '#8a4a3a', door: '#5a3a22', trim: '#a9865a', roofStyle: 'gable' },
+  { siding: '#c9d6c0', roof: '#465264', door: '#3a2a1a', trim: '#8a9a80', roofStyle: 'flat' },
+  { siding: '#e0c9b0', roof: '#b3552e', door: '#2e2a26', trim: '#b09070', roofStyle: 'tile' },
+  { siding: '#cfe0d8', roof: '#3a4a3a', door: '#4a2a1a', trim: '#8fae9d', roofStyle: 'aframe' },
+  { siding: '#e8dcc0', roof: '#5a4a6a', door: '#3a2a3a', trim: '#c0b090', roofStyle: 'gable' },
+];
+
+/* Mailbox body styles/colors, cycled per house for street variety */
+const MAILBOX_STYLES = ['classicArch', 'pillar', 'house', 'ruralFlag', 'wall'];
+const MAILBOX_COLORS = [
+  { color: '#c94141', dark: '#9c3131' },
+  { color: '#3a8a7a', dark: '#2a685c' },
+  { color: '#4a6fa5', dark: '#365580' },
+  { color: '#2f6b4a', dark: '#204d35' },
+  { color: '#d99a3a', dark: '#a8722a' },
 ];
 
 /* ---------- Level configs ---------- */
@@ -198,7 +208,12 @@ function makeHouse(side, topY, cfg, index) {
 
   const wallRect = { x: houseX, y: topY, w: houseW, h: HOUSE_H };
   const yardRect = { x: yardX, y: topY, w: yardW, h: HOUSE_H };
-  const mailbox = { x: mailboxX, y: topY + HOUSE_H / 2, delivered: false, r: 16 };
+  const mbColors = MAILBOX_COLORS[index % MAILBOX_COLORS.length];
+  const mailbox = {
+    x: mailboxX, y: topY + HOUSE_H / 2, delivered: false, r: 16,
+    style: MAILBOX_STYLES[index % MAILBOX_STYLES.length],
+    boxColor: mbColors.color, boxDark: mbColors.dark,
+  };
 
   // porch center = where sentry/pace dogs anchor (inside the yard, near the house), facing toward the street
   const porchX = side === 'left' ? yardX + 18 : yardX + yardW - 18;
@@ -616,6 +631,103 @@ function drawRoad(w) {
   ctx.setLineDash([]);
 }
 
+function drawRoofGable(roofX0, roofX1, r, flip, pal) {
+  ctx.fillStyle = pal.roof;
+  ctx.fillRect(roofX0, r.y, roofX1 - roofX0, r.h);
+  ctx.strokeStyle = 'rgba(0,0,0,0.25)';
+  ctx.lineWidth = 1;
+  const ridgeX = (roofX0 + roofX1) / 2;
+  for (let ly = r.y + 6; ly < r.y + r.h; ly += 9) {
+    ctx.beginPath();
+    ctx.moveTo(ridgeX, ly);
+    ctx.lineTo(flip ? roofX1 - 3 : roofX0 + 3, ly + 2);
+    ctx.moveTo(ridgeX, ly);
+    ctx.lineTo(flip ? roofX0 + 3 : roofX1 - 3, ly + 2);
+    ctx.stroke();
+  }
+  ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(ridgeX, r.y + 2);
+  ctx.lineTo(ridgeX, r.y + r.h - 2);
+  ctx.stroke();
+}
+
+function drawRoofFlat(roofX0, roofX1, r, pal) {
+  ctx.fillStyle = pal.roof;
+  ctx.fillRect(roofX0, r.y, roofX1 - roofX0, r.h);
+  // gravel/tar texture speckle
+  ctx.fillStyle = 'rgba(255,255,255,0.08)';
+  for (let ly = r.y + 5; ly < r.y + r.h; ly += 7) {
+    for (let lx = roofX0 + 3; lx < roofX1 - 2; lx += 6) {
+      if ((lx + ly) % 3 === 0) ctx.fillRect(lx, ly, 2, 2);
+    }
+  }
+  // parapet edge
+  ctx.strokeStyle = 'rgba(255,255,255,0.35)';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(roofX0 + 1, r.y + 1, roofX1 - roofX0 - 2, r.h - 2);
+}
+
+function drawRoofTile(roofX0, roofX1, r, flip, pal) {
+  ctx.fillStyle = pal.roof;
+  ctx.fillRect(roofX0, r.y, roofX1 - roofX0, r.h);
+  const ridgeX = (roofX0 + roofX1) / 2;
+  ctx.strokeStyle = 'rgba(0,0,0,0.2)';
+  ctx.lineWidth = 1;
+  for (let ly = r.y + 6; ly < r.y + r.h; ly += 9) {
+    ctx.beginPath();
+    ctx.moveTo(ridgeX, ly); ctx.lineTo(flip ? roofX1 - 3 : roofX0 + 3, ly + 2);
+    ctx.moveTo(ridgeX, ly); ctx.lineTo(flip ? roofX0 + 3 : roofX1 - 3, ly + 2);
+    ctx.stroke();
+  }
+  // terracotta scalloped tile rows
+  ctx.fillStyle = 'rgba(255,255,255,0.16)';
+  for (let ly = r.y + 5; ly < r.y + r.h - 4; ly += 8) {
+    for (let lx = roofX0 + 3; lx < roofX1 - 3; lx += 7) {
+      ctx.beginPath();
+      ctx.arc(lx, ly, 2.6, 0, Math.PI, true);
+      ctx.fill();
+    }
+  }
+  ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(ridgeX, r.y + 2); ctx.lineTo(ridgeX, r.y + r.h - 2);
+  ctx.stroke();
+}
+
+function drawRoofAframe(roofX0, roofX1, r, flip, pal) {
+  const apexX = flip ? roofX1 - 4 : roofX0 + 4;
+  const baseX = flip ? roofX0 : roofX1;
+  ctx.fillStyle = pal.roof;
+  ctx.beginPath();
+  ctx.moveTo(apexX, r.y + r.h / 2);
+  ctx.lineTo(baseX, r.y);
+  ctx.lineTo(baseX, r.y + r.h);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(0,0,0,0.22)';
+  ctx.lineWidth = 1;
+  for (let t = 0.15; t < 1; t += 0.14) {
+    ctx.beginPath();
+    ctx.moveTo(apexX, r.y + r.h / 2);
+    ctx.lineTo(baseX, r.y + r.h * t);
+    ctx.stroke();
+  }
+  ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(apexX, r.y + r.h / 2); ctx.lineTo(baseX, r.y);
+  ctx.moveTo(apexX, r.y + r.h / 2); ctx.lineTo(baseX, r.y + r.h);
+  ctx.stroke();
+  // small peak window
+  ctx.fillStyle = 'rgba(200,225,235,0.8)';
+  ctx.beginPath();
+  ctx.arc(apexX + (flip ? -10 : 10), r.y + r.h / 2, 3.5, 0, Math.PI * 2);
+  ctx.fill();
+}
+
 // Houses are drawn in a 3/4 top-down style (a la classic Zelda/Stardew towns):
 // the roof recedes toward the back of the lot (away from the street) while a
 // tall front facade -- with door, windows, and its own drop-shadow -- faces
@@ -639,25 +751,11 @@ function drawHouse(h) {
   ctx.fillRect(flip ? r.x + r.w : r.x - 5, r.y + 3, 5, r.h - 3);
 
   // --- roof zone (receding, away from the street) ---
-  ctx.fillStyle = pal.roof;
-  ctx.fillRect(roofX0, r.y, roofX1 - roofX0, r.h);
-  ctx.strokeStyle = 'rgba(0,0,0,0.25)';
-  ctx.lineWidth = 1;
-  const ridgeX = (roofX0 + roofX1) / 2;
-  for (let ly = r.y + 6; ly < r.y + r.h; ly += 9) {
-    ctx.beginPath();
-    ctx.moveTo(ridgeX, ly);
-    ctx.lineTo(flip ? roofX1 - 3 : roofX0 + 3, ly + 2);
-    ctx.moveTo(ridgeX, ly);
-    ctx.lineTo(flip ? roofX0 + 3 : roofX1 - 3, ly + 2);
-    ctx.stroke();
-  }
-  ctx.strokeStyle = 'rgba(255,255,255,0.3)';
-  ctx.lineWidth = 1.5;
-  ctx.beginPath();
-  ctx.moveTo(ridgeX, r.y + 2);
-  ctx.lineTo(ridgeX, r.y + r.h - 2);
-  ctx.stroke();
+  const roofStyle = pal.roofStyle || 'gable';
+  if (roofStyle === 'flat') drawRoofFlat(roofX0, roofX1, r, pal);
+  else if (roofStyle === 'tile') drawRoofTile(roofX0, roofX1, r, flip, pal);
+  else if (roofStyle === 'aframe') drawRoofAframe(roofX0, roofX1, r, flip, pal);
+  else drawRoofGable(roofX0, roofX1, r, flip, pal);
 
   // --- facade zone (tall front wall facing the street) ---
   ctx.fillStyle = pal.siding;
@@ -788,6 +886,10 @@ function drawBush(b) {
   }
 }
 
+// Mailbox body styles, loosely modeled on classic USPS/rural/pillar/community
+// designs. Each style only replaces the box shape -- the post, flag, and
+// delivered-checkmark stay consistent across styles so the "flag up = done"
+// affordance always reads the same regardless of look.
 function drawMailbox(mb) {
   ctx.fillStyle = 'rgba(0,0,0,0.15)';
   ctx.beginPath();
@@ -800,9 +902,38 @@ function drawMailbox(mb) {
   ctx.fillRect(mb.x - 2, mb.y - 2, 4, 22);
   ctx.fillStyle = '#5a3e26';
   ctx.fillRect(mb.x - 6, mb.y + 18, 12, 4);
-  // box (loaf shape)
-  const boxColor = mb.delivered ? '#3bb54a' : '#c94141';
-  const boxDark = mb.delivered ? '#2a8a37' : '#9c3131';
+
+  const boxColor = mb.delivered ? '#3bb54a' : (mb.boxColor || '#c94141');
+  const boxDark = mb.delivered ? '#2a8a37' : (mb.boxDark || '#9c3131');
+  const style = mb.style || 'classicArch';
+  if (style === 'pillar') drawMailboxPillar(mb, boxColor, boxDark);
+  else if (style === 'house') drawMailboxHouse(mb, boxColor, boxDark);
+  else if (style === 'ruralFlag') drawMailboxRuralFlag(mb, boxColor, boxDark);
+  else if (style === 'wall') drawMailboxWall(mb, boxColor, boxDark);
+  else drawMailboxClassicArch(mb, boxColor, boxDark);
+
+  // flag
+  ctx.strokeStyle = '#888';
+  ctx.lineWidth = 1.4;
+  ctx.beginPath();
+  ctx.moveTo(mb.x + 9, mb.y - 4);
+  ctx.lineTo(mb.x + 9, mb.y - (mb.delivered ? 16 : 4));
+  ctx.stroke();
+  ctx.fillStyle = '#d94141';
+  if (mb.delivered) {
+    ctx.beginPath();
+    ctx.moveTo(mb.x + 9, mb.y - 16);
+    ctx.lineTo(mb.x + 15, mb.y - 13);
+    ctx.lineTo(mb.x + 9, mb.y - 10);
+    ctx.fill();
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 11px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('✓', mb.x, mb.y - 6);
+  }
+}
+
+function drawMailboxClassicArch(mb, boxColor, boxDark) {
   ctx.fillStyle = boxDark;
   ctx.beginPath();
   ctx.moveTo(mb.x - 10, mb.y - 2);
@@ -821,27 +952,69 @@ function drawMailbox(mb) {
   ctx.beginPath();
   ctx.ellipse(mb.x - 4, mb.y - 15, 4, 2, -0.3, 0, Math.PI * 2);
   ctx.fill();
-  // flag
-  ctx.strokeStyle = '#888';
-  ctx.lineWidth = 1.4;
+}
+
+function drawMailboxPillar(mb, boxColor, boxDark) {
+  ctx.fillStyle = '#8a8680';
+  ctx.fillRect(mb.x - 7, mb.y, 14, 5);
+  ctx.fillStyle = boxDark;
+  ctx.fillRect(mb.x - 8, mb.y - 30, 16, 30);
+  ctx.fillStyle = boxColor;
+  ctx.fillRect(mb.x - 6, mb.y - 30, 12, 28);
   ctx.beginPath();
-  ctx.moveTo(mb.x + 9, mb.y - 4);
-  ctx.lineTo(mb.x + 9, mb.y - (mb.delivered ? 16 : 4));
-  ctx.stroke();
-  ctx.fillStyle = '#d94141';
-  if (mb.delivered) {
-    ctx.beginPath();
-    ctx.moveTo(mb.x + 9, mb.y - 16);
-    ctx.lineTo(mb.x + 15, mb.y - 13);
-    ctx.lineTo(mb.x + 9, mb.y - 10);
-    ctx.fill();
-  }
-  if (mb.delivered) {
-    ctx.fillStyle = '#fff';
-    ctx.font = 'bold 11px sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillText('✓', mb.x, mb.y - 6);
-  }
+  ctx.ellipse(mb.x, mb.y - 30, 6, 4, 0, Math.PI, 0);
+  ctx.fill();
+  ctx.fillStyle = 'rgba(0,0,0,0.3)';
+  ctx.fillRect(mb.x - 4, mb.y - 20, 8, 2);
+  ctx.fillStyle = 'rgba(255,255,255,0.3)';
+  ctx.fillRect(mb.x - 4, mb.y - 26, 2, 20);
+}
+
+function drawMailboxHouse(mb, boxColor, boxDark) {
+  ctx.fillStyle = boxDark;
+  ctx.fillRect(mb.x - 9, mb.y - 16, 18, 14);
+  ctx.fillStyle = boxColor;
+  ctx.fillRect(mb.x - 8, mb.y - 15, 16, 13);
+  // gabled roof
+  ctx.fillStyle = '#5a6b7a';
+  ctx.beginPath();
+  ctx.moveTo(mb.x - 11, mb.y - 16);
+  ctx.lineTo(mb.x, mb.y - 25);
+  ctx.lineTo(mb.x + 11, mb.y - 16);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = 'rgba(0,0,0,0.35)';
+  ctx.fillRect(mb.x - 3, mb.y - 10, 6, 7);
+}
+
+function drawMailboxRuralFlag(mb, boxColor, boxDark) {
+  ctx.fillStyle = boxDark;
+  ctx.beginPath();
+  ctx.ellipse(mb.x, mb.y - 10, 11, 9, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = boxColor;
+  ctx.beginPath();
+  ctx.ellipse(mb.x, mb.y - 11, 10, 8, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = 'rgba(0,0,0,0.4)';
+  ctx.beginPath();
+  ctx.ellipse(mb.x + 6, mb.y - 11, 3.6, 6.2, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,255,0.3)';
+  ctx.beginPath();
+  ctx.ellipse(mb.x - 4, mb.y - 15, 3.5, 1.8, -0.3, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+function drawMailboxWall(mb, boxColor, boxDark) {
+  ctx.fillStyle = boxDark;
+  ctx.fillRect(mb.x - 9, mb.y - 20, 18, 18);
+  ctx.fillStyle = boxColor;
+  ctx.fillRect(mb.x - 8, mb.y - 19, 16, 16);
+  ctx.fillStyle = 'rgba(0,0,0,0.4)';
+  ctx.fillRect(mb.x - 5, mb.y - 13, 10, 2.5);
+  ctx.fillStyle = 'rgba(255,255,255,0.25)';
+  ctx.fillRect(mb.x - 6, mb.y - 17, 12, 2);
 }
 
 // Orients a side-view sprite (drawn facing +x) toward `angle` without ever
