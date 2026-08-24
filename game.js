@@ -160,16 +160,37 @@ const LEVELS = [
 const HOUSE_H = 210;
 const HOUSE_GAP = 26;
 const HOUSE_W = 150;
-const YARD_W = 150;
-const STREET_W = 180; // baseline street/sidewalk width -- the road winds inside the slack this leaves
-const CURVE_AMPLITUDE_1 = 35;
-const CURVE_AMPLITUDE_2 = 12;
+const YARD_W = 190;
+const STREET_W = 180;      // vertical corridor street width, and horizontal cross-street width
+const CORRIDOR_COUNT = 2;  // side-by-side vertical street corridors -- the "columns" of the block grid
+const CORRIDOR_GAP = 60;   // back-lot buffer between one corridor's houses and the next corridor's
+const CORRIDOR_W = HOUSE_W + YARD_W + STREET_W + YARD_W + HOUSE_W;
+const ROW_H = HOUSE_H + HOUSE_GAP;
+const ROWS_PER_BLOCK = 2;  // house-rows between horizontal cross streets
+const MARGIN_TOP = 140;
+const MARGIN_BOTTOM = 160;
 
-// The street isn't a straight line down the middle -- its center wanders
-// left/right as the world scrolls, so houses (anchored relative to it)
-// end up in a winding, less predictable layout instead of two rigid columns.
-function roadCenterX(y) {
-  return VIEW_W / 2 + CURVE_AMPLITUDE_1 * Math.sin(y / 260) + CURVE_AMPLITUDE_2 * Math.sin(y / 110 + 1.3);
+// A real block grid: houses alternate between CORRIDOR_COUNT vertical street
+// corridors (so the camera has to pan horizontally too), and every
+// ROWS_PER_BLOCK rows a horizontal cross street cuts across *all* corridors
+// at the same world Y, forming actual 4-way intersections instead of one
+// long straight or winding line.
+function corridorX0(corridorIndex) {
+  return corridorIndex * (CORRIDOR_W + CORRIDOR_GAP);
+}
+function rowSlotY(rowSlot) {
+  const blockIndex = Math.floor(rowSlot / ROWS_PER_BLOCK);
+  const rowInBlock = rowSlot % ROWS_PER_BLOCK;
+  return MARGIN_TOP + blockIndex * (ROWS_PER_BLOCK * ROW_H + STREET_W) + rowInBlock * ROW_H;
+}
+function crossStreetBands(rowSlotCount) {
+  const blocks = Math.ceil(rowSlotCount / ROWS_PER_BLOCK);
+  const bands = [];
+  for (let b = 0; b < blocks; b++) {
+    const y0 = MARGIN_TOP + b * (ROWS_PER_BLOCK * ROW_H + STREET_W) + ROWS_PER_BLOCK * ROW_H;
+    bands.push({ y0, y1: y0 + STREET_W });
+  }
+  return bands;
 }
 
 /* ---------- Utility ---------- */
@@ -228,6 +249,7 @@ const state = {
   level: 0,     // 0-indexed
   lives: 3,
   world: null,
+  camX: 0,
   camY: 0,
   lastTime: 0,
   suspicionDisplay: 0,
@@ -256,44 +278,74 @@ function showOnly(name) {
 function buildWorld(levelIndex) {
   const cfg = LEVELS[levelIndex];
   const houses = [];
-  const worldH = cfg.houses * (HOUSE_H + HOUSE_GAP) + 260;
+  const rowSlotCount = Math.ceil(cfg.houses / CORRIDOR_COUNT);
 
   for (let i = 0; i < cfg.houses; i++) {
+    const corridor = i % CORRIDOR_COUNT;
+    const rowSlot = Math.floor(i / CORRIDOR_COUNT);
     const side = i % 2 === 0 ? 'left' : 'right';
-    const topY = 140 + i * (HOUSE_H + HOUSE_GAP);
-    const house = makeHouse(side, topY, cfg, i);
+    const topY = rowSlotY(rowSlot);
+    const house = makeHouse(side, topY, cfg, i, corridorX0(corridor));
     houses.push(house);
   }
 
+  const worldW = corridorX0(CORRIDOR_COUNT - 1) + CORRIDOR_W;
+  const worldH = rowSlotY(rowSlotCount - 1) + HOUSE_H + MARGIN_BOTTOM;
+  const crossStreets = crossStreetBands(rowSlotCount).filter((b) => b.y1 < worldH);
   const totalMail = houses.length;
 
   // static decorative elements, precomputed once so they don't flicker/jitter each frame
   const roadSpeckles = [];
-  const speckleCount = Math.round(worldH / 14);
-  for (let i = 0; i < speckleCount; i++) {
-    const y = Math.random() * worldH;
-    const rcx = roadCenterX(y);
-    roadSpeckles.push({
-      x: rcx - STREET_W / 2 + 34 + Math.random() * (STREET_W - 68),
-      y,
-      r: 1 + Math.random() * 1.8,
-      a: 0.05 + Math.random() * 0.08,
-    });
+  for (let c = 0; c < CORRIDOR_COUNT; c++) {
+    const cx0 = corridorX0(c) + HOUSE_W + YARD_W;
+    const count = Math.round(worldH / 16);
+    for (let i = 0; i < count; i++) {
+      roadSpeckles.push({
+        x: cx0 + 34 + Math.random() * (STREET_W - 68),
+        y: Math.random() * worldH,
+        r: 1 + Math.random() * 1.8,
+        a: 0.05 + Math.random() * 0.08,
+      });
+    }
+  }
+  for (const band of crossStreets) {
+    const count = Math.round(worldW / 16);
+    for (let i = 0; i < count; i++) {
+      roadSpeckles.push({
+        x: Math.random() * worldW,
+        y: band.y0 + 34 + Math.random() * (STREET_W - 68),
+        r: 1 + Math.random() * 1.8,
+        a: 0.05 + Math.random() * 0.08,
+      });
+    }
   }
   const clouds = [];
-  for (let i = 0; i < 3; i++) {
-    clouds.push({ x: 80 + Math.random() * (VIEW_W - 160), y: 20 + Math.random() * 90, s: 0.7 + Math.random() * 0.6 });
+  for (let i = 0; i < Math.max(3, Math.round(worldW / 400)); i++) {
+    clouds.push({ x: 80 + Math.random() * (worldW - 160), y: 20 + Math.random() * 90, s: 0.7 + Math.random() * 0.6 });
   }
 
+  // a loose treeline down each back-lot gap between corridors, so that
+  // empty buffer strip doesn't read as a dead void
+  const gapTrees = [];
+  for (let c = 0; c < CORRIDOR_COUNT - 1; c++) {
+    const gx = corridorX0(c) + CORRIDOR_W + CORRIDOR_GAP / 2;
+    for (let y = 80; y < worldH - 40; y += 90 + Math.random() * 60) {
+      gapTrees.push({ x: gx + (Math.random() - 0.5) * 20, y, r: 14 + Math.random() * 8, kind: Math.random() < 0.5 ? 'pine' : 'round' });
+    }
+  }
+
+  const startX = corridorX0(0) + CORRIDOR_W / 2;
   return {
     cfg,
     houses,
+    worldW,
     worldH,
+    crossStreets,
     totalMail,
     delivered: 0,
-    decor: { roadSpeckles, clouds },
+    decor: { roadSpeckles, clouds, gapTrees },
     player: {
-      x: VIEW_W / 2,
+      x: startX,
       y: 60,
       r: 11,
       speed: 130,
@@ -305,42 +357,68 @@ function buildWorld(levelIndex) {
       animFrame: 0,
       animTimer: 0,
     },
-    startPlayer: { x: VIEW_W / 2, y: 60 },
+    startPlayer: { x: startX, y: 60 },
   };
 }
 
-function makeHouse(side, topY, cfg, index) {
+const YARD_THEMES = ['garden', 'wooded', 'ornamental', 'minimal'];
+
+function makeHouse(side, topY, cfg, index, corridorBaseX) {
   const houseW = HOUSE_W;
   const yardW = YARD_W;
-  const rcx = roadCenterX(topY + HOUSE_H / 2);
-  const halfGap = STREET_W / 2;
-  // mailbox sits well back from the road edge (not right at the curb), so
-  // reaching it means actually walking into the yard and past the dog's
-  // territory instead of a quick tap-and-go from the sidewalk
-  const mailboxDepth = 0.35 + Math.random() * 0.3;
-  let houseX, yardX, mailboxX;
+  const streetX0 = corridorBaseX + houseW + yardW;
+  let houseX, yardX;
   if (side === 'left') {
-    yardX = rcx - halfGap - yardW;
+    yardX = streetX0 - yardW;
     houseX = yardX - houseW;
-    mailboxX = (yardX + yardW) - yardW * mailboxDepth;
   } else {
-    yardX = rcx + halfGap;
+    yardX = streetX0 + STREET_W;
     houseX = yardX + yardW;
-    mailboxX = yardX + yardW * mailboxDepth;
   }
 
   const wallRect = { x: houseX, y: topY, w: houseW, h: HOUSE_H };
   const yardRect = { x: yardX, y: topY, w: yardW, h: HOUSE_H };
+
+  const palette = HOUSE_PALETTES[index % HOUSE_PALETTES.length];
+  const hasChimney = index % 2 === 0;
+  const flowerWindow = Math.random() < 0.5 ? 0 : 1;
+  const doorX = side === 'left' ? houseX + houseW - 26 : houseX + 6;
+  const doorCenterY = topY + HOUSE_H / 2;
+
+  // mailbox sits right beside the front door (not at the curb), so reaching
+  // it means crossing the whole yard past the dog's territory
   const mailbox = {
-    x: mailboxX, y: topY + HOUSE_H / 2, delivered: false, r: 16,
+    x: side === 'left' ? houseX + houseW + 16 : houseX - 16,
+    y: doorCenterY + 24,
+    delivered: false, r: 16,
     style: MAILBOX_STYLES[index % MAILBOX_STYLES.length],
   };
 
-  // porch center = where sentry/pace dogs anchor (inside the yard, near the house), facing toward the street
-  const porchX = side === 'left' ? yardX + 18 : yardX + yardW - 18;
+  // porch center = where sentry/pace dogs anchor, with a buffer from the
+  // door/mailbox so the dog isn't standing directly on top of them
+  const porchX = side === 'left' ? yardX + 58 : yardX + yardW - 58;
   const facingAngle = side === 'left' ? 0 : Math.PI;
 
-  // bushes: random small obstacles within yard, avoiding mailbox & porch line
+  // curvy stepping-stone path from the street edge to the door/mailbox
+  const pathEntry = { x: side === 'left' ? yardX + yardW - 10 : yardX + 10, y: topY + HOUSE_H * (0.25 + Math.random() * 0.5) };
+  const pathEnd = { x: mailbox.x + (side === 'left' ? -10 : 10), y: mailbox.y };
+  const pathControl = { x: (pathEntry.x + pathEnd.x) / 2 + (Math.random() - 0.5) * 60, y: (pathEntry.y + pathEnd.y) / 2 + (Math.random() - 0.5) * 40 };
+  const pathStones = [];
+  const stoneCount = 9;
+  for (let t = 0; t <= stoneCount; t++) {
+    const tt = t / stoneCount;
+    const mt = 1 - tt;
+    pathStones.push({
+      x: mt * mt * pathEntry.x + 2 * mt * tt * pathControl.x + tt * tt * pathEnd.x,
+      y: mt * mt * pathEntry.y + 2 * mt * tt * pathControl.y + tt * tt * pathEnd.y,
+      r: 7 + Math.random() * 3,
+      rot: Math.random() * Math.PI,
+    });
+  }
+
+  const theme = YARD_THEMES[index % YARD_THEMES.length];
+
+  // bushes: small obstacles that also block dog line-of-sight
   const bushes = [];
   const bushCount = Math.random() < cfg.bushChance ? (Math.random() < 0.4 ? 2 : 1) : 0;
   for (let b = 0; b < bushCount; b++) {
@@ -350,18 +428,35 @@ function makeHouse(side, topY, cfg, index) {
     bushes.push({ x: bx, y: by, w: bw, h: bh });
   }
 
-  const palette = HOUSE_PALETTES[index % HOUSE_PALETTES.length];
-  const hasChimney = index % 2 === 0;
-  const flowerWindow = Math.random() < 0.5 ? 0 : 1;
-  const doorX = side === 'left' ? houseX + houseW - 26 : houseX + 6;
-  const doorCenterY = topY + HOUSE_H / 2;
-  const walkway = side === 'left'
-    ? { x: houseX + houseW, y: doorCenterY - 8, w: (mailboxX - 12) - (houseX + houseW), h: 16 }
-    : { x: mailboxX + 12, y: doorCenterY - 8, w: houseX - (mailboxX + 12), h: 16 };
+  // decorative dressing (purely visual, no collision): trees, flower beds,
+  // rocks, and a street lamp near the curb -- density/mix varies by theme
+  // so each yard reads as its own distinct little setup
+  const trees = [], flowerBeds = [], rocks = [];
+  const treeCount = theme === 'wooded' ? 2 + Math.floor(Math.random() * 2) : theme === 'garden' ? 1 : theme === 'minimal' ? 0 : 1;
+  const flowerCount = theme === 'garden' ? 3 + Math.floor(Math.random() * 2) : theme === 'ornamental' ? 2 : theme === 'wooded' ? 1 : 0;
+  const rockCount = theme === 'wooded' ? 2 + Math.floor(Math.random() * 2) : theme === 'ornamental' ? 2 : 1;
+
+  const placeInYard = (marginX, marginY) => ({
+    x: clamp(yardX + marginX + Math.random() * (yardW - marginX * 2), yardX + 4, yardX + yardW - 4),
+    y: clamp(topY + marginY + Math.random() * (HOUSE_H - marginY * 2), topY + 4, topY + HOUSE_H - 4),
+  });
+  for (let t = 0; t < treeCount; t++) {
+    const p = placeInYard(24, 28);
+    trees.push({ x: p.x, y: p.y, r: 16 + Math.random() * 8, kind: Math.random() < 0.5 ? 'pine' : 'round' });
+  }
+  for (let f = 0; f < flowerCount; f++) {
+    const p = placeInYard(16, 16);
+    flowerBeds.push({ x: p.x, y: p.y, w: 20 + Math.random() * 14, h: 14 + Math.random() * 8 });
+  }
+  for (let r = 0; r < rockCount; r++) {
+    const p = placeInYard(12, 12);
+    rocks.push({ x: p.x, y: p.y, r: 4 + Math.random() * 4 });
+  }
+  const lamp = { x: side === 'left' ? yardX + yardW - 14 : yardX + 14, y: topY + HOUSE_H - 20 };
 
   // grass tufts: small static texture marks scattered in the yard
   const grassTufts = [];
-  const tuftCount = 22;
+  const tuftCount = 26;
   for (let g = 0; g < tuftCount; g++) {
     grassTufts.push({
       x: yardX + 6 + Math.random() * (yardW - 12),
@@ -404,7 +499,8 @@ function makeHouse(side, topY, cfg, index) {
 
   return {
     side, topY, wallRect, yardRect, mailbox, bushes, dogs, index,
-    palette, hasChimney, flowerWindow, doorX, walkway, grassTufts,
+    palette, hasChimney, flowerWindow, doorX, grassTufts,
+    theme, trees, flowerBeds, rocks, lamp, pathStones,
   };
 }
 
@@ -520,7 +616,7 @@ function updatePlayer(dt) {
       if (circleRectOverlap(nx, p.y, p.r, h.wallRect)) blockedX = true;
       if (circleRectOverlap(p.x, ny, p.r, h.wallRect)) blockedY = true;
     }
-    p.x = blockedX ? p.x : clamp(nx, p.r, VIEW_W - p.r);
+    p.x = blockedX ? p.x : clamp(nx, p.r, w.worldW - p.r);
     p.y = blockedY ? p.y : clamp(ny, p.r, w.worldH - p.r);
   }
 
@@ -654,7 +750,9 @@ function breedFillRate(breed, sneaking) {
 function updateCamera() {
   const w = state.world;
   const p = w.player;
+  const targetX = clamp(p.x - VIEW_W / 2, 0, Math.max(0, w.worldW - VIEW_W));
   const targetY = clamp(p.y - VIEW_H / 2, 0, Math.max(0, w.worldH - VIEW_H));
+  state.camX += (targetX - state.camX) * 0.15;
   state.camY += (targetY - state.camY) * 0.15;
 }
 
@@ -665,9 +763,10 @@ function draw() {
   const w = state.world;
 
   ctx.save();
-  ctx.translate(0, -state.camY);
+  ctx.translate(-state.camX, -state.camY);
 
   drawBackground(w);
+  for (const t of w.decor.gapTrees) drawTree(t);
   for (const h of w.houses) drawYard(h);
   drawRoad(w);
   for (const h of w.houses) drawHouse(h);
@@ -685,14 +784,14 @@ function draw() {
 
 function drawBackground(w) {
   ctx.fillStyle = '#4f8a4b';
-  ctx.fillRect(0, 0, VIEW_W, w.worldH);
-  // sky strip above the first house, with soft clouds
+  ctx.fillRect(0, 0, w.worldW, w.worldH);
+  // sky strip above the first row, with soft clouds
   const skyH = 130;
   const sky = ctx.createLinearGradient(0, 0, 0, skyH);
   sky.addColorStop(0, '#8fd0e8');
   sky.addColorStop(1, '#4f8a4b');
   ctx.fillStyle = sky;
-  ctx.fillRect(0, 0, VIEW_W, skyH);
+  ctx.fillRect(0, 0, w.worldW, skyH);
   ctx.fillStyle = 'rgba(255,255,255,0.85)';
   for (const c of w.decor.clouds) {
     ctx.beginPath();
@@ -701,6 +800,88 @@ function drawBackground(w) {
     ctx.ellipse(c.x - 18 * c.s, c.y + 5 * c.s, 16 * c.s, 9 * c.s, 0, 0, Math.PI * 2);
     ctx.fill();
   }
+}
+
+function drawPathStones(stones) {
+  for (const s of stones) {
+    ctx.fillStyle = 'rgba(0,0,0,0.14)';
+    ctx.beginPath(); ctx.ellipse(s.x + 1, s.y + 2, s.r, s.r * 0.62, s.rot, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#c7c0ae';
+    ctx.beginPath(); ctx.ellipse(s.x, s.y, s.r, s.r * 0.72, s.rot, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,0.28)';
+    ctx.beginPath(); ctx.ellipse(s.x - s.r * 0.25, s.y - s.r * 0.25, s.r * 0.4, s.r * 0.25, s.rot, 0, Math.PI * 2); ctx.fill();
+  }
+}
+
+function drawFlowerBed(f) {
+  ctx.fillStyle = '#3a2a1c';
+  ctx.beginPath(); ctx.ellipse(f.x, f.y, f.w / 2, f.h / 2, 0, 0, Math.PI * 2); ctx.fill();
+  const colors = ['#e0556a', '#f0c93a', '#e88ac9', '#f4f4f4', '#8a6ad1'];
+  const n = 6;
+  for (let i = 0; i < n; i++) {
+    const a = (i / n) * Math.PI * 2;
+    ctx.fillStyle = colors[i % colors.length];
+    ctx.beginPath();
+    ctx.arc(f.x + Math.cos(a) * f.w * 0.32, f.y + Math.sin(a) * f.h * 0.32, 3, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.fillStyle = '#4a8a4a';
+  ctx.beginPath(); ctx.arc(f.x, f.y, 3.2, 0, Math.PI * 2); ctx.fill();
+}
+
+function drawRock(r) {
+  ctx.fillStyle = 'rgba(0,0,0,0.15)';
+  ctx.beginPath(); ctx.ellipse(r.x + 1, r.y + 2, r.r, r.r * 0.6, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#8a8f94';
+  ctx.beginPath(); ctx.ellipse(r.x, r.y, r.r, r.r * 0.78, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,255,0.25)';
+  ctx.beginPath(); ctx.ellipse(r.x - r.r * 0.3, r.y - r.r * 0.3, r.r * 0.35, r.r * 0.22, 0, 0, Math.PI * 2); ctx.fill();
+}
+
+function drawTree(t) {
+  ctx.fillStyle = 'rgba(0,0,0,0.18)';
+  ctx.beginPath(); ctx.ellipse(t.x + 2, t.y + t.r * 0.55, t.r * 0.9, t.r * 0.4, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#6b4a2e';
+  ctx.fillRect(t.x - 3, t.y - 4, 6, t.r * 0.5);
+  if (t.kind === 'pine') {
+    ctx.fillStyle = '#2f6b3a';
+    for (let i = 0; i < 3; i++) {
+      const tw = t.r * (1 - i * 0.22);
+      const ty = t.y - i * t.r * 0.5;
+      ctx.beginPath();
+      ctx.moveTo(t.x, ty - t.r * 0.7);
+      ctx.lineTo(t.x - tw, ty + t.r * 0.15);
+      ctx.lineTo(t.x + tw, ty + t.r * 0.15);
+      ctx.closePath();
+      ctx.fill();
+    }
+  } else {
+    const grad = ctx.createRadialGradient(t.x - t.r * 0.3, t.y - t.r * 0.6, 2, t.x, t.y - t.r * 0.3, t.r * 1.1);
+    grad.addColorStop(0, '#6fbf5f');
+    grad.addColorStop(1, '#3a7a3a');
+    ctx.fillStyle = grad;
+    ctx.beginPath(); ctx.arc(t.x, t.y - t.r * 0.3, t.r, 0, Math.PI * 2); ctx.fill();
+  }
+}
+
+function drawLamp(l) {
+  ctx.fillStyle = 'rgba(0,0,0,0.15)';
+  ctx.beginPath(); ctx.ellipse(l.x, l.y + 14, 6, 2.4, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#3a3a3e';
+  ctx.fillRect(l.x - 2, l.y - 24, 4, 38);
+  ctx.fillStyle = '#2a2a2e';
+  ctx.beginPath(); ctx.arc(l.x, l.y + 14, 4, 0, Math.PI * 2); ctx.fill();
+  const glow = ctx.createRadialGradient(l.x, l.y - 28, 0, l.x, l.y - 28, 14);
+  glow.addColorStop(0, 'rgba(255,230,150,0.5)');
+  glow.addColorStop(1, 'rgba(255,230,150,0)');
+  ctx.fillStyle = glow;
+  ctx.beginPath(); ctx.arc(l.x, l.y - 28, 14, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#f0d060';
+  ctx.beginPath(); ctx.ellipse(l.x, l.y - 28, 5, 6, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#2a2a2e';
+  ctx.beginPath();
+  ctx.moveTo(l.x - 6, l.y - 34); ctx.lineTo(l.x + 6, l.y - 34); ctx.lineTo(l.x, l.y - 40);
+  ctx.closePath(); ctx.fill();
 }
 
 function drawYard(h) {
@@ -722,73 +903,79 @@ function drawYard(h) {
     ctx.lineTo(t.x + Math.cos(t.rot) * 5, t.y + Math.sin(t.rot) * 5 - 3);
     ctx.stroke();
   }
-  // walkway from door to mailbox
-  const wk = h.walkway;
-  if (wk.w > 4) {
-    ctx.fillStyle = '#c9c3b4';
-    ctx.fillRect(wk.x, wk.y, wk.w, wk.h);
-    ctx.strokeStyle = 'rgba(0,0,0,0.12)';
-    ctx.lineWidth = 1;
-    for (let lx = wk.x + 10; lx < wk.x + wk.w; lx += 14) {
-      ctx.beginPath();
-      ctx.moveTo(lx, wk.y);
-      ctx.lineTo(lx, wk.y + wk.h);
-      ctx.stroke();
-    }
-  }
+  // curvy stepping-stone path from the street to the door/mailbox, then
+  // yard dressing -- the mix varies per house's theme for a distinct look
+  drawPathStones(h.pathStones);
+  for (const r of h.rocks) drawRock(r);
+  for (const f of h.flowerBeds) drawFlowerBed(f);
+  for (const t of h.trees) drawTree(t);
+  drawLamp(h.lamp);
 }
 
-// Sample points along the winding road, offset left/right from its
-// (curving) centerline -- used to build both filled ribbons and stroked
-// lines that follow the curve instead of running straight down the world.
-function roadPoints(worldH, offset, step) {
-  const pts = [];
-  for (let y = 0; y <= worldH; y += step) pts.push({ x: roadCenterX(y) + offset, y });
-  if (pts[pts.length - 1].y < worldH) pts.push({ x: roadCenterX(worldH) + offset, y: worldH });
-  return pts;
-}
-function fillRibbon(leftPts, rightPts, color) {
-  ctx.fillStyle = color;
+function drawVerticalStreet(streetX0, worldH) {
+  const x0 = streetX0, x1 = streetX0 + STREET_W;
+  ctx.fillStyle = '#a19c8d';
+  ctx.fillRect(x0, 0, STREET_W, worldH);
+  ctx.fillStyle = '#54585c';
+  ctx.fillRect(x0 + 30, 0, STREET_W - 60, worldH);
+  ctx.strokeStyle = 'rgba(0,0,0,0.18)';
+  ctx.lineWidth = 2;
   ctx.beginPath();
-  ctx.moveTo(leftPts[0].x, leftPts[0].y);
-  for (let i = 1; i < leftPts.length; i++) ctx.lineTo(leftPts[i].x, leftPts[i].y);
-  for (let i = rightPts.length - 1; i >= 0; i--) ctx.lineTo(rightPts[i].x, rightPts[i].y);
-  ctx.closePath();
-  ctx.fill();
-}
-function strokePath(pts, strokeStyle, lineWidth, dash) {
-  ctx.strokeStyle = strokeStyle;
-  ctx.lineWidth = lineWidth;
-  ctx.setLineDash(dash || []);
+  ctx.moveTo(x0 + 30, 0); ctx.lineTo(x0 + 30, worldH);
+  ctx.moveTo(x1 - 30, 0); ctx.lineTo(x1 - 30, worldH);
+  ctx.stroke();
+  ctx.strokeStyle = 'rgba(0,0,0,0.08)';
+  ctx.lineWidth = 1.5;
+  for (let y = 20; y < worldH; y += 46) {
+    ctx.beginPath();
+    ctx.moveTo(x0 + 4, y); ctx.lineTo(x0 + 27, y);
+    ctx.moveTo(x1 - 27, y); ctx.lineTo(x1 - 4, y);
+    ctx.stroke();
+  }
+  ctx.strokeStyle = 'rgba(255,224,110,0.8)';
+  ctx.lineWidth = 3;
+  ctx.setLineDash([16, 18]);
   ctx.beginPath();
-  ctx.moveTo(pts[0].x, pts[0].y);
-  for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
+  ctx.moveTo(x0 + STREET_W / 2, 0); ctx.lineTo(x0 + STREET_W / 2, worldH);
+  ctx.stroke();
+  ctx.setLineDash([]);
+}
+
+function drawHorizontalStreet(streetY0, worldW) {
+  const y0 = streetY0, y1 = streetY0 + STREET_W;
+  ctx.fillStyle = '#a19c8d';
+  ctx.fillRect(0, y0, worldW, STREET_W);
+  ctx.fillStyle = '#54585c';
+  ctx.fillRect(0, y0 + 30, worldW, STREET_W - 60);
+  ctx.strokeStyle = 'rgba(0,0,0,0.18)';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(0, y0 + 30); ctx.lineTo(worldW, y0 + 30);
+  ctx.moveTo(0, y1 - 30); ctx.lineTo(worldW, y1 - 30);
+  ctx.stroke();
+  ctx.strokeStyle = 'rgba(0,0,0,0.08)';
+  ctx.lineWidth = 1.5;
+  for (let x = 20; x < worldW; x += 46) {
+    ctx.beginPath();
+    ctx.moveTo(x, y0 + 4); ctx.lineTo(x, y0 + 27);
+    ctx.moveTo(x, y1 - 27); ctx.lineTo(x, y1 - 4);
+    ctx.stroke();
+  }
+  ctx.strokeStyle = 'rgba(255,224,110,0.8)';
+  ctx.lineWidth = 3;
+  ctx.setLineDash([16, 18]);
+  ctx.beginPath();
+  ctx.moveTo(0, y0 + STREET_W / 2); ctx.lineTo(worldW, y0 + STREET_W / 2);
   ctx.stroke();
   ctx.setLineDash([]);
 }
 
 function drawRoad(w) {
-  const step = 8;
-  const half = STREET_W / 2;
-
-  fillRibbon(roadPoints(w.worldH, -half, step), roadPoints(w.worldH, half, step), '#a19c8d');
-  const roadL = roadPoints(w.worldH, -half + 30, step);
-  const roadR = roadPoints(w.worldH, half - 30, step);
-  fillRibbon(roadL, roadR, '#54585c');
-
-  // curb lines
-  strokePath(roadL, 'rgba(0,0,0,0.18)', 2);
-  strokePath(roadR, 'rgba(0,0,0,0.18)', 2);
-
-  // sidewalk expansion-joint ticks
-  ctx.strokeStyle = 'rgba(0,0,0,0.08)';
-  ctx.lineWidth = 1.5;
-  for (let y = 20; y < w.worldH; y += 46) {
-    const rcx = roadCenterX(y);
-    ctx.beginPath();
-    ctx.moveTo(rcx - half + 4, y); ctx.lineTo(rcx - half + 27, y);
-    ctx.moveTo(rcx + half - 27, y); ctx.lineTo(rcx + half - 4, y);
-    ctx.stroke();
+  for (let c = 0; c < CORRIDOR_COUNT; c++) {
+    drawVerticalStreet(corridorX0(c) + HOUSE_W + YARD_W, w.worldH);
+  }
+  for (const band of w.crossStreets) {
+    drawHorizontalStreet(band.y0, w.worldW);
   }
 
   // asphalt speckle texture
@@ -799,8 +986,18 @@ function drawRoad(w) {
     ctx.fill();
   }
 
-  // center dashed line
-  strokePath(roadPoints(w.worldH, 0, step), 'rgba(255,224,110,0.8)', 3, [16, 18]);
+  // a small manhole-style accent marks each real 4-way intersection
+  for (let c = 0; c < CORRIDOR_COUNT; c++) {
+    const cx = corridorX0(c) + HOUSE_W + YARD_W + STREET_W / 2;
+    for (const band of w.crossStreets) {
+      const cy = band.y0 + STREET_W / 2;
+      ctx.fillStyle = 'rgba(0,0,0,0.22)';
+      ctx.beginPath(); ctx.ellipse(cx, cy, 10, 7, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.ellipse(cx, cy, 10, 7, 0, 0, Math.PI * 2); ctx.stroke();
+    }
+  }
 }
 
 function drawRoofGable(roofX0, roofX1, r, flip, pal) {
@@ -909,7 +1106,7 @@ function drawHouse(h) {
   const pal = h.palette;
   const flip = h.side === 'right'; // true: house is right of the street, facade faces left (-x)
 
-  const roofDepth = r.w * 0.4;
+  const roofDepth = r.w * 0.56;
   // facade zone = near the yard/street edge; roof zone = near the back edge
   const facadeX0 = flip ? r.x : r.x + roofDepth;
   const facadeX1 = flip ? r.x + r.w - roofDepth : r.x + r.w;
