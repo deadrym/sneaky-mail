@@ -185,7 +185,7 @@ const LOT_TYPES = [
   },
   {
     key: 'cabin', w: 336, h: 462, sidewalkY: 432,
-    house: { x: 47, y: 137, w: 178, h: 175 },
+    house: { x: 47, y: 137, w: 178, h: 151 },
     solids: [
       { x: 0, y: 14, w: 13, h: 121, sight: true },
       { x: 245, y: 87, w: 38, h: 108, sight: true },
@@ -201,11 +201,11 @@ const LOT_TYPES = [
       { x: 245, y: 2, w: 35, h: 29 },
       { x: 16, y: 14, w: 31, h: 37 },
     ],
-    mailbox: { x: 125, y: 274 }, dogSpawn: { x: 108, y: 383 },
+    mailbox: { x: 126, y: 296 }, dogSpawn: { x: 108, y: 383 },
   },
   {
     key: 'modern', w: 462, h: 462, sidewalkY: 430,
-    house: { x: 95, y: 95, w: 272, h: 215 },
+    house: { x: 95, y: 95, w: 272, h: 196 },
     solids: [
       { x: 46, y: 44, w: 35, h: 46 },
       { x: 379, y: 41, w: 33, h: 80, sight: true },
@@ -219,11 +219,11 @@ const LOT_TYPES = [
       { x: 410, y: 141, w: 45, h: 40 },
       { x: 94, y: 60, w: 179, h: 35 },
     ],
-    mailbox: { x: 229, y: 281 }, dogSpawn: { x: 234, y: 357 },
+    mailbox: { x: 231, y: 305 }, dogSpawn: { x: 234, y: 357 },
   },
   {
     key: 'green', w: 692, h: 479, sidewalkY: 445,
-    house: { x: 306, y: 50, w: 242, h: 188 },
+    house: { x: 306, y: 50, w: 242, h: 179 },
     solids: [
       { x: 120, y: 0, w: 55, h: 105, sight: true },
       { x: 85, y: 222, w: 44, h: 39, sight: true },
@@ -248,11 +248,11 @@ const LOT_TYPES = [
       { x: 384, y: 13, w: 60, h: 18 },
       { x: 490, y: 19, w: 26, h: 33 },
     ],
-    mailbox: { x: 404, y: 222 }, dogSpawn: { x: 288, y: 324 },
+    mailbox: { x: 403, y: 238 }, dogSpawn: { x: 288, y: 324 },
   },
   {
     key: 'spanish', w: 757, h: 479, sidewalkY: 448,
-    house: { x: 148, y: 89, w: 356, h: 161 },
+    house: { x: 148, y: 89, w: 348, h: 140 },
     solids: [
       { x: 54, y: 47, w: 31, h: 117, sight: true },
       { x: 107, y: 182, w: 40, h: 60 },
@@ -278,8 +278,9 @@ const LOT_TYPES = [
       { x: 634, y: 144, w: 30, h: 34 },
       { x: 675, y: 323, w: 43, h: 36 },
     ],
-    mailbox: { x: 253, y: 219 }, dogSpawn: { x: 330, y: 298 },
-  },];
+    mailbox: { x: 252, y: 237 }, dogSpawn: { x: 330, y: 298 },
+  },
+];
 
 /* ---------- Level configs ---------- */
 const LEVELS = [
