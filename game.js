@@ -154,101 +154,132 @@ const MAILBOX_STYLES = Object.keys(ASSET_PATHS.mailboxes);
 const LOT_TYPES = [
   {
     key: 'brick', w: 646, h: 462, sidewalkY: 430,
-    house: { x: 172, y: 30, w: 282, h: 292 },
+    house: { x: 178, y: 121, w: 267, h: 187 },
     solids: [
-      { x: 6, y: 55, w: 105, h: 140, sight: true },
+      { x: 68, y: 40, w: 32, h: 140, sight: true },
       { x: 98, y: 178, w: 74, h: 42 },
-      { x: 0, y: 200, w: 104, h: 108, sight: true },
-      { x: 148, y: 332, w: 64, h: 68 },
-      { x: 30, y: 358, w: 66, h: 48 },
-      { x: 236, y: 302, w: 44, h: 40 },
-      { x: 342, y: 282, w: 40, h: 44 },
-      { x: 488, y: 0, w: 80, h: 120, sight: true },
-      { x: 592, y: 0, w: 54, h: 74, sight: true },
-      { x: 566, y: 148, w: 80, h: 130, sight: true },
-      { x: 532, y: 292, w: 84, h: 110, sight: true },
-      { x: 452, y: 246, w: 44, h: 38 },
-      { x: 452, y: 342, w: 32, h: 84 },
+      { x: 31, y: 212, w: 41, h: 118, sight: true },
+      { x: 159, y: 345, w: 40, h: 56 },
+      { x: 21, y: 364, w: 53, h: 29 },
+      { x: 229, y: 312, w: 32, h: 30 },
+      { x: 353, y: 288, w: 20, h: 44 },
+      { x: 503, y: 28, w: 37, h: 139, sight: true },
+      { x: 621, y: 0, w: 25, h: 136, sight: true },
+      { x: 586, y: 190, w: 34, h: 104, sight: true },
+      { x: 449, y: 251, w: 44, h: 38 },
+      { x: 462, y: 373, w: 20, h: 84 },
+      { x: 213, y: 89, w: 191, h: 29 },
+      { x: 374, y: 32, w: 26, h: 60 },
+      { x: 290, y: 71, w: 57, h: 18 },
+      { x: 185, y: 47, w: 44, h: 25 },
+      { x: 511, y: 193, w: 24, h: 26 },
+      { x: 508, y: 284, w: 25, h: 26 },
+      { x: 612, y: 304, w: 34, h: 31 },
+      { x: 578, y: 3, w: 41, h: 55 },
+      { x: 15, y: 27, w: 51, h: 89 },
+      { x: 102, y: 31, w: 41, h: 90 },
+      { x: 304, y: 50, w: 22, h: 21 },
+      { x: 564, y: 334, w: 22, h: 63 },
     ],
-    mailbox: { x: 398, y: 360 }, dogSpawn: { x: 330, y: 375 },
+    mailbox: { x: 338, y: 316 }, dogSpawn: { x: 259, y: 374 },
   },
   {
     key: 'cabin', w: 336, h: 462, sidewalkY: 432,
-    house: { x: 28, y: 42, w: 236, h: 262 },
+    house: { x: 47, y: 137, w: 178, h: 175 },
     solids: [
-      { x: 0, y: 80, w: 30, h: 120, sight: true },
-      { x: 262, y: 55, w: 74, h: 108, sight: true },
-      { x: 30, y: 300, w: 34, h: 40 },
-      { x: 112, y: 252, w: 30, h: 40 },
-      { x: 0, y: 330, w: 60, h: 70, sight: true },
-      { x: 252, y: 300, w: 84, h: 118, sight: true },
-      { x: 286, y: 258, w: 28, h: 86 },
+      { x: 0, y: 14, w: 13, h: 121, sight: true },
+      { x: 245, y: 87, w: 38, h: 108, sight: true },
+      { x: 3, y: 377, w: 48, h: 40 },
+      { x: 192, y: 368, w: 59, h: 57, sight: true },
+      { x: 285, y: 257, w: 29, h: 112 },
+      { x: 56, y: 99, w: 161, h: 36 },
+      { x: 83, y: 66, w: 96, h: 33 },
+      { x: 107, y: 35, w: 49, h: 32 },
+      { x: 183, y: 45, w: 34, h: 53 },
+      { x: 27, y: 155, w: 17, h: 141 },
+      { x: 227, y: 195, w: 17, h: 92 },
+      { x: 245, y: 2, w: 35, h: 29 },
+      { x: 16, y: 14, w: 31, h: 37 },
     ],
-    mailbox: { x: 196, y: 362 }, dogSpawn: { x: 170, y: 385 },
+    mailbox: { x: 125, y: 274 }, dogSpawn: { x: 108, y: 383 },
   },
   {
     key: 'modern', w: 462, h: 462, sidewalkY: 430,
-    house: { x: 95, y: 58, w: 272, h: 252 },
+    house: { x: 95, y: 95, w: 272, h: 215 },
     solids: [
-      { x: 0, y: 0, w: 60, h: 60, sight: true },
-      { x: 385, y: 10, w: 77, h: 80, sight: true },
-      { x: 50, y: 150, w: 55, h: 60, sight: true },
-      { x: 45, y: 240, w: 60, h: 70, sight: true },
-      { x: 30, y: 330, w: 60, h: 55, sight: true },
+      { x: 46, y: 44, w: 35, h: 46 },
+      { x: 379, y: 41, w: 33, h: 80, sight: true },
+      { x: 38, y: 248, w: 48, h: 70, sight: true },
+      { x: 73, y: 341, w: 60, h: 55, sight: true },
       { x: 60, y: 365, w: 40, h: 35 },
-      { x: 248, y: 268, w: 32, h: 42 },
-      { x: 370, y: 250, w: 60, h: 70, sight: true },
-      { x: 385, y: 330, w: 70, h: 60, sight: true },
-      { x: 425, y: 255, w: 35, h: 30 },
-      { x: 355, y: 365, w: 30, h: 80 },
+      { x: 60, y: 167, w: 32, h: 42 },
+      { x: 364, y: 221, w: 45, h: 54, sight: true },
+      { x: 402, y: 265, w: 35, h: 30 },
+      { x: 355, y: 351, w: 22, h: 101 },
+      { x: 410, y: 141, w: 45, h: 40 },
+      { x: 94, y: 60, w: 179, h: 35 },
     ],
-    mailbox: { x: 245, y: 345 }, dogSpawn: { x: 200, y: 385 },
+    mailbox: { x: 229, y: 281 }, dogSpawn: { x: 234, y: 357 },
   },
   {
     key: 'green', w: 692, h: 479, sidewalkY: 445,
-    house: { x: 300, y: 18, w: 242, h: 220 },
+    house: { x: 306, y: 50, w: 242, h: 188 },
     solids: [
-      { x: 120, y: 25, w: 90, h: 80, sight: true },
-      { x: 55, y: 150, w: 175, h: 110, sight: true },
-      { x: 45, y: 180, w: 60, h: 60, sight: true },
-      { x: 60, y: 280, w: 110, h: 90, sight: true },
-      { x: 198, y: 285, w: 22, h: 35 },
-      { x: 255, y: 240, w: 40, h: 35 },
-      { x: 305, y: 190, w: 60, h: 60, sight: true },
-      { x: 520, y: 255, w: 40, h: 35 },
-      { x: 470, y: 355, w: 120, h: 55 },
-      { x: 550, y: 265, w: 60, h: 80 },
-      { x: 600, y: 30, w: 70, h: 110, sight: true },
-      { x: 585, y: 175, w: 90, h: 110, sight: true },
-      { x: 620, y: 300, w: 72, h: 90, sight: true },
+      { x: 120, y: 0, w: 55, h: 105, sight: true },
+      { x: 85, y: 222, w: 44, h: 39, sight: true },
+      { x: 36, y: 126, w: 12, h: 60, sight: true },
+      { x: 26, y: 363, w: 29, h: 57, sight: true },
+      { x: 22, y: 22, w: 31, h: 35 },
+      { x: 226, y: 57, w: 40, h: 35 },
+      { x: 74, y: 308, w: 60, h: 60, sight: true },
+      { x: 507, y: 258, w: 40, h: 35 },
+      { x: 468, y: 354, w: 122, h: 43 },
+      { x: 557, y: 274, w: 41, h: 63 },
+      { x: 598, y: 25, w: 33, h: 73, sight: true },
+      { x: 601, y: 175, w: 37, h: 100, sight: true },
+      { x: 415, y: 390, w: 37, h: 32 },
+      { x: 203, y: 282, w: 28, h: 48 },
+      { x: 163, y: 203, w: 19, h: 67 },
+      { x: 47, y: 190, w: 16, h: 86 },
+      { x: 40, y: 151, w: 186, h: 52 },
+      { x: 208, y: 204, w: 10, h: 66 },
+      { x: 265, y: 191, w: 39, h: 36 },
+      { x: 374, y: 33, w: 92, h: 19 },
+      { x: 384, y: 13, w: 60, h: 18 },
+      { x: 490, y: 19, w: 26, h: 33 },
     ],
-    mailbox: { x: 432, y: 272 }, dogSpawn: { x: 380, y: 340 },
+    mailbox: { x: 404, y: 222 }, dogSpawn: { x: 288, y: 324 },
   },
   {
     key: 'spanish', w: 757, h: 479, sidewalkY: 448,
-    house: { x: 148, y: 8, w: 364, h: 242 },
+    house: { x: 148, y: 89, w: 356, h: 161 },
     solids: [
-      { x: 55, y: 55, w: 70, h: 110, sight: true },
-      { x: 60, y: 175, w: 60, h: 90, sight: true },
-      { x: 110, y: 190, w: 40, h: 60 },
-      { x: 130, y: 330, w: 90, h: 70, sight: true },
-      { x: 115, y: 370, w: 50, h: 40 },
-      { x: 355, y: 195, w: 50, h: 60, sight: true },
-      { x: 405, y: 355, w: 70, h: 60, sight: true },
+      { x: 54, y: 47, w: 31, h: 117, sight: true },
+      { x: 107, y: 182, w: 40, h: 60 },
+      { x: 132, y: 345, w: 78, h: 44 },
+      { x: 681, y: 196, w: 30, h: 60, sight: true },
+      { x: 419, y: 354, w: 48, h: 53, sight: true },
       { x: 505, y: 275, w: 80, h: 85 },
-      { x: 545, y: 375, w: 80, h: 45 },
-      { x: 580, y: 60, w: 130, h: 120, sight: true },
-      { x: 615, y: 300, w: 30, h: 80 },
-      { x: 0, y: 320, w: 28, h: 90 },
-      { x: 700, y: 230, w: 57, h: 70, sight: true },
-      { x: 690, y: 355, w: 67, h: 70, sight: true },
-      { x: 85, y: 285, w: 45, h: 60, sight: true },
-      { x: 228, y: 345, w: 42, h: 55, sight: true },
-      { x: 700, y: 0, w: 57, h: 60, sight: true },
+      { x: 552, y: 378, w: 69, h: 37 },
+      { x: 584, y: -1, w: 41, h: 180, sight: true },
+      { x: 615, y: 302, w: 19, h: 67 },
+      { x: -3, y: 333, w: 20, h: 100 },
+      { x: 74, y: 294, w: 30, h: 71, sight: true },
+      { x: 240, y: 349, w: 24, h: 55, sight: true },
+      { x: 711, y: 96, w: 26, h: 61, sight: true },
+      { x: 227, y: 2, w: 43, h: 43 },
+      { x: 195, y: 21, w: 31, h: 23 },
+      { x: 271, y: 20, w: 29, h: 22 },
+      { x: 145, y: 41, w: 211, h: 48 },
+      { x: 358, y: 66, w: 36, h: 24 },
+      { x: 451, y: 45, w: 28, h: 28 },
+      { x: 46, y: 256, w: 33, h: 35 },
+      { x: 535, y: 146, w: 48, h: 33 },
+      { x: 634, y: 144, w: 30, h: 34 },
+      { x: 675, y: 323, w: 43, h: 36 },
     ],
-    mailbox: { x: 292, y: 282 }, dogSpawn: { x: 330, y: 355 },
-  },
-];
+    mailbox: { x: 253, y: 219 }, dogSpawn: { x: 330, y: 298 },
+  },];
 
 /* ---------- Level configs ---------- */
 const LEVELS = [
@@ -265,6 +296,7 @@ const LEVELS = [
 ];
 
 const STREET_W = 170;      // horizontal street band width
+const PLAYER_R = 11;       // player collision radius, also sizes mailbox approach clearance
 const WORLD_W = 880;       // fits the widest lot plus verge, and stays under
                            // the 900px canvas so the camera never pans sideways
 const MARGIN_TOP = 150;    // grass verge above the first lot, where the player starts
@@ -441,7 +473,7 @@ function buildWorld(levelIndex) {
     player: {
       x: startX,
       y: MARGIN_TOP - 32,
-      r: 11,
+      r: PLAYER_R,
       speed: 130,
       sneakSpeed: 78,
       facing: Math.PI / 2,
@@ -474,6 +506,31 @@ function makeHouse(lot, lotX, topY, cfg, index) {
     delivered: false, r: 18,
     style: MAILBOX_STYLES[index % MAILBOX_STYLES.length],
   };
+  // In most of the lot art the mailbox stands right against the porch, so
+  // its authored point falls inside the house's own collision rect -- the
+  // player can never physically get within delivery range of it. Keep the
+  // sprite where it was drawn, but deliver against a separate trigger point
+  // nudged out to the nearest walkable edge, so walking up to the porch
+  // counts. Repeated because the pushed-out point can land in another solid.
+  mailbox.tx = mailbox.x;
+  mailbox.ty = mailbox.y;
+  for (let pass = 0; pass < 4; pass++) {
+    const blocker = solids.find((s) => circleRectOverlap(mailbox.tx, mailbox.ty, PLAYER_R + 2, s));
+    if (!blocker) break;
+    const out = PLAYER_R + 6;
+    const cand = [
+      { x: blocker.x - out, y: mailbox.ty },
+      { x: blocker.x + blocker.w + out, y: mailbox.ty },
+      { x: mailbox.tx, y: blocker.y - out },
+      { x: mailbox.tx, y: blocker.y + blocker.h + out },
+    ];
+    // prefer the shortest shove, so the trigger stays beside the drawn sprite
+    cand.sort((a, b) => dist(a.x, a.y, mailbox.x, mailbox.y) - dist(b.x, b.y, mailbox.x, mailbox.y));
+    const clear = cand.find((c) => !solids.some((s) => circleRectOverlap(c.x, c.y, PLAYER_R + 2, s)));
+    const pick = clear || cand[0];
+    mailbox.tx = pick.x;
+    mailbox.ty = pick.y;
+  }
 
   // the open ground in front of the house, where the dog roams and the
   // player has to pick a route through the decor
@@ -648,7 +705,7 @@ function updatePlayer(dt) {
 
   // mailbox delivery
   for (const h of w.houses) {
-    if (!h.mailbox.delivered && dist(p.x, p.y, h.mailbox.x, h.mailbox.y) < h.mailbox.r + p.r) {
+    if (!h.mailbox.delivered && dist(p.x, p.y, h.mailbox.tx, h.mailbox.ty) < h.mailbox.r + p.r) {
       h.mailbox.delivered = true;
       w.delivered++;
       updateHud();
