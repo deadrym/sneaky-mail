@@ -288,7 +288,34 @@ function seedLotScene(index) {
   };
 }
 
-const LOT_TYPES = [0, 1, 2, 3, 4].map(seedLotScene);
+// Hand-arranged layouts from the scene editor. A lot listed here overrides
+// its auto-seeded version; anything not listed still gets seeded, so lots
+// can be hand-finished one at a time.
+const AUTHORED_SCENES = {
+  0: {
+    key: 'lot1', w: LOT_W, h: LOT_H, sidewalkY: 394,
+    items: [
+      { prop: 'house1', x: 453, y: 253 },
+      { prop: 'bush', x: 698, y: 267 },
+      { prop: 'rock', x: 197, y: 392 },
+      { prop: 'bush', x: 416, y: 394 },
+      { prop: 'birdbath', x: 198, y: 164 },
+      { prop: 'bush', x: 306, y: 298 },
+      { prop: 'rock', x: 239, y: 72 },
+      { prop: 'bush', x: 677, y: 145 },
+      { prop: 'rock', x: 676, y: 384 },
+      { prop: 'bush', x: 291, y: 207 },
+      { prop: 'birdbath', x: 572, y: 333, scale: 1.09 },
+      { prop: 'rock', x: 613, y: 240 },
+      { prop: 'bush', x: 285, y: 329 },
+      { prop: 'lamppost', x: 130, y: 419 },
+      { prop: 'lamppost', x: 833, y: 423 },
+    ],
+    mailbox: { x: 466, y: 265 }, dogSpawn: { x: 440, y: 324 },
+  },
+};
+
+const LOT_TYPES = [0, 1, 2, 3, 4].map((i) => AUTHORED_SCENES[i] || seedLotScene(i));
 
 // Collision is derived from the placements once the sprites have loaded,
 // since a footprint needs the sprite's aspect ratio to size correctly.
