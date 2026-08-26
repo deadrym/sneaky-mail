@@ -37,8 +37,9 @@ const ASSET_PATHS = {
   tiles: {
     grass: 'assets/tiles/grass.png',
     sidewalk: 'assets/tiles/sidewalk.png',
-    roadH: 'assets/tiles/road_h.png',
-    roadV: 'assets/tiles/road_v.png',
+    sidewalkCorner: 'assets/tiles/sidewalk%20corner.png',
+    roadH: 'assets/tiles/horizontal%20street.png',
+    roadV: 'assets/tiles/vertical%20street.png',
   },
   lots: {
     brick: 'assets/houses/01_brick_cottage_yard.png',
