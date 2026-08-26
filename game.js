@@ -41,12 +41,18 @@ const ASSET_PATHS = {
     roadH: 'assets/tiles/horizontal%20street.png',
     roadV: 'assets/tiles/vertical%20street.png',
   },
-  lots: {
-    brick: 'assets/houses/01_brick_cottage_yard.png',
-    cabin: 'assets/houses/02_cabin_yard.png',
-    modern: 'assets/houses/03_modern_house_yard.png',
-    green: 'assets/houses/04_green_cottage_yard.png',
-    spanish: 'assets/houses/05_spanish_house_yard.png',
+  // Individual scene sprites, pre-trimmed to their opaque bounds so a
+  // placement is just a bottom-centre point with no padding to correct for.
+  props: {
+    house1: 'assets/props/house1.png',
+    house2: 'assets/props/house2.png',
+    house3: 'assets/props/house3.png',
+    bush: 'assets/props/bush.png',
+    rock: 'assets/props/rock.png',
+    birdbath: 'assets/props/birdbath.png',
+    lamppost: 'assets/props/lamppost.png',
+    mailmanStand: 'assets/props/mailman_stand.png',
+    mailmanWalk: 'assets/props/mailman_walk.png',
   },
   mailboxes: {
     arch_red: 'assets/mailboxes/arch_red.png',
@@ -184,145 +190,118 @@ const BREEDS = {
 /* Mailbox sprite styles, cycled per house for street variety */
 const MAILBOX_STYLES = Object.keys(ASSET_PATHS.mailboxes);
 
-/* ---------- Lot art + collision ----------
-   Each lot is one hand-drawn scene image (house, yard, decor, sidewalk all
-   baked in), so the obstacles in it can't be derived at runtime -- they're
-   authored here as rectangles in the image's own pixel coordinates and
-   translated to world space when the lot is placed.
-     solid: blocks movement for the player and dogs
-     sight: additionally blocks a dog's line of sight (foliage you can hide
-            behind); buildings block sight too, set implicitly for `house`
-   `mailbox` / `dogSpawn` are also image-space points. */
-const LOT_TYPES = [
-  {
-    key: 'brick', w: 646, h: 462, sidewalkY: 430,
-    house: { x: 178, y: 121, w: 267, h: 187 },
-    solids: [
-      { x: 68, y: 40, w: 32, h: 140, sight: true },
-      { x: 98, y: 178, w: 74, h: 42 },
-      { x: 31, y: 212, w: 41, h: 118, sight: true },
-      { x: 159, y: 345, w: 40, h: 56 },
-      { x: 21, y: 364, w: 53, h: 29 },
-      { x: 229, y: 312, w: 32, h: 30 },
-      { x: 353, y: 288, w: 20, h: 44 },
-      { x: 503, y: 28, w: 37, h: 139, sight: true },
-      { x: 621, y: 0, w: 25, h: 136, sight: true },
-      { x: 586, y: 190, w: 34, h: 104, sight: true },
-      { x: 449, y: 251, w: 44, h: 38 },
-      { x: 462, y: 373, w: 20, h: 84 },
-      { x: 213, y: 89, w: 191, h: 29 },
-      { x: 374, y: 32, w: 26, h: 60 },
-      { x: 290, y: 71, w: 57, h: 18 },
-      { x: 185, y: 47, w: 44, h: 25 },
-      { x: 511, y: 193, w: 24, h: 26 },
-      { x: 508, y: 284, w: 25, h: 26 },
-      { x: 612, y: 304, w: 34, h: 31 },
-      { x: 578, y: 3, w: 41, h: 55 },
-      { x: 15, y: 27, w: 51, h: 89 },
-      { x: 102, y: 31, w: 41, h: 90 },
-      { x: 304, y: 50, w: 22, h: 21 },
-      { x: 564, y: 334, w: 22, h: 63 },
-    ],
-    mailbox: { x: 338, y: 316 }, dogSpawn: { x: 259, y: 374 },
-  },
-  {
-    key: 'cabin', w: 336, h: 462, sidewalkY: 432,
-    house: { x: 47, y: 137, w: 178, h: 151 },
-    solids: [
-      { x: 0, y: 14, w: 13, h: 121, sight: true },
-      { x: 245, y: 87, w: 38, h: 108, sight: true },
-      { x: 3, y: 377, w: 48, h: 40 },
-      { x: 192, y: 368, w: 59, h: 57, sight: true },
-      { x: 285, y: 257, w: 29, h: 112 },
-      { x: 56, y: 99, w: 161, h: 36 },
-      { x: 83, y: 66, w: 96, h: 33 },
-      { x: 107, y: 35, w: 49, h: 32 },
-      { x: 183, y: 45, w: 34, h: 53 },
-      { x: 27, y: 155, w: 17, h: 141 },
-      { x: 227, y: 195, w: 17, h: 92 },
-      { x: 245, y: 2, w: 35, h: 29 },
-      { x: 16, y: 14, w: 31, h: 37 },
-    ],
-    mailbox: { x: 126, y: 296 }, dogSpawn: { x: 108, y: 383 },
-  },
-  {
-    key: 'modern', w: 462, h: 462, sidewalkY: 430,
-    house: { x: 95, y: 95, w: 272, h: 196 },
-    solids: [
-      { x: 46, y: 44, w: 35, h: 46 },
-      { x: 379, y: 41, w: 33, h: 80, sight: true },
-      { x: 38, y: 248, w: 48, h: 70, sight: true },
-      { x: 73, y: 341, w: 60, h: 55, sight: true },
-      { x: 60, y: 365, w: 40, h: 35 },
-      { x: 60, y: 167, w: 32, h: 42 },
-      { x: 364, y: 221, w: 45, h: 54, sight: true },
-      { x: 402, y: 265, w: 35, h: 30 },
-      { x: 355, y: 351, w: 22, h: 101 },
-      { x: 410, y: 141, w: 45, h: 40 },
-      { x: 94, y: 60, w: 179, h: 35 },
-    ],
-    mailbox: { x: 231, y: 305 }, dogSpawn: { x: 234, y: 357 },
-  },
-  {
-    key: 'green', w: 692, h: 479, sidewalkY: 445,
-    house: { x: 306, y: 50, w: 242, h: 179 },
-    solids: [
-      { x: 120, y: 0, w: 55, h: 105, sight: true },
-      { x: 85, y: 222, w: 44, h: 39, sight: true },
-      { x: 36, y: 126, w: 12, h: 60, sight: true },
-      { x: 26, y: 363, w: 29, h: 57, sight: true },
-      { x: 22, y: 22, w: 31, h: 35 },
-      { x: 226, y: 57, w: 40, h: 35 },
-      { x: 74, y: 308, w: 60, h: 60, sight: true },
-      { x: 507, y: 258, w: 40, h: 35 },
-      { x: 468, y: 354, w: 122, h: 43 },
-      { x: 557, y: 274, w: 41, h: 63 },
-      { x: 598, y: 25, w: 33, h: 73, sight: true },
-      { x: 601, y: 175, w: 37, h: 100, sight: true },
-      { x: 415, y: 390, w: 37, h: 32 },
-      { x: 203, y: 282, w: 28, h: 48 },
-      { x: 163, y: 203, w: 19, h: 67 },
-      { x: 47, y: 190, w: 16, h: 86 },
-      { x: 40, y: 151, w: 186, h: 52 },
-      { x: 208, y: 204, w: 10, h: 66 },
-      { x: 265, y: 191, w: 39, h: 36 },
-      { x: 374, y: 33, w: 92, h: 19 },
-      { x: 384, y: 13, w: 60, h: 18 },
-      { x: 490, y: 19, w: 26, h: 33 },
-    ],
-    mailbox: { x: 403, y: 238 }, dogSpawn: { x: 288, y: 324 },
-  },
-  {
-    key: 'spanish', w: 757, h: 479, sidewalkY: 448,
-    house: { x: 148, y: 89, w: 348, h: 140 },
-    solids: [
-      { x: 54, y: 47, w: 31, h: 117, sight: true },
-      { x: 107, y: 182, w: 40, h: 60 },
-      { x: 132, y: 345, w: 78, h: 44 },
-      { x: 681, y: 196, w: 30, h: 60, sight: true },
-      { x: 419, y: 354, w: 48, h: 53, sight: true },
-      { x: 505, y: 275, w: 80, h: 85 },
-      { x: 552, y: 378, w: 69, h: 37 },
-      { x: 584, y: -1, w: 41, h: 180, sight: true },
-      { x: 615, y: 302, w: 19, h: 67 },
-      { x: -3, y: 333, w: 20, h: 100 },
-      { x: 74, y: 294, w: 30, h: 71, sight: true },
-      { x: 240, y: 349, w: 24, h: 55, sight: true },
-      { x: 711, y: 96, w: 26, h: 61, sight: true },
-      { x: 227, y: 2, w: 43, h: 43 },
-      { x: 195, y: 21, w: 31, h: 23 },
-      { x: 271, y: 20, w: 29, h: 22 },
-      { x: 145, y: 41, w: 211, h: 48 },
-      { x: 358, y: 66, w: 36, h: 24 },
-      { x: 451, y: 45, w: 28, h: 28 },
-      { x: 46, y: 256, w: 33, h: 35 },
-      { x: 535, y: 146, w: 48, h: 33 },
-      { x: 634, y: 144, w: 30, h: 34 },
-      { x: 675, y: 323, w: 43, h: 36 },
-    ],
-    mailbox: { x: 252, y: 237 }, dogSpawn: { x: 330, y: 298 },
-  },
-];
+const STREET_W = 170;      // horizontal street band width
+const PLAYER_R = 11;       // player collision radius, also sizes mailbox approach clearance
+const WORLD_W = 880;       // fits the widest lot plus verge, and stays under
+                           // the 900px canvas so the camera never pans sideways
+const MARGIN_TOP = 150;    // grass verge above the first lot, where the player starts
+const MARGIN_BOTTOM = 150;
+const SKY_H = 96;          // decorative horizon strip, kept clear of the first lot
+
+/* ---------- Scene props + composed lots ----------
+   A lot is no longer one baked image. It's a list of sprite placements over
+   tiled ground, so the layout is data you can edit rather than pixels.
+
+   Each prop declares the height it renders at in world pixels, plus the
+   share of that sprite which is actually standing on the ground -- a
+   face-on house should only block movement at its base, not across its
+   roof, and a lamppost only at its post. Collision and sight-blocking are
+   derived from that footprint, so obstacles can never drift out of step
+   with the art the way hand-authored rectangles did.
+     h      : rendered height in world px (sprites are pre-trimmed)
+     footH  : footprint height, as a share of h, measured up from the base
+     footW  : footprint width, as a share of the sprite's rendered width
+     sight  : also blocks a dog's line of sight (cover you can hide behind) */
+const PROPS = {
+  house1:   { h: 210, footH: 0.30, footW: 0.94, solid: true, sight: true },
+  house2:   { h: 190, footH: 0.32, footW: 0.94, solid: true, sight: true },
+  house3:   { h: 205, footH: 0.30, footW: 0.94, solid: true, sight: true },
+  bush:     { h: 46,  footH: 0.62, footW: 0.86, solid: true, sight: true },
+  rock:     { h: 34,  footH: 0.70, footW: 0.88, solid: true },
+  birdbath: { h: 52,  footH: 0.34, footW: 0.60, solid: true },
+  lamppost: { h: 92,  footH: 0.10, footW: 0.30, solid: true },
+};
+
+const LOT_W = WORLD_W;     // scenes span the full width, so there are no
+                           // ragged grass flanks left over beside a lot
+const LOT_H = 430;
+const SIDEWALK_H = 36;     // the walk along the front of every property
+
+// Footprint rectangle for one placement, in lot-image space. `x`,`y` is the
+// sprite's bottom-centre -- the point where it meets the ground.
+function propFootprint(item) {
+  const p = PROPS[item.prop];
+  const img = IMAGES[`props.${item.prop}`];
+  const aspect = (img && img.naturalHeight) ? img.naturalWidth / img.naturalHeight : 1;
+  const scale = item.scale || 1;
+  const h = p.h * scale;
+  const w = h * aspect;
+  return {
+    x: item.x - (w * p.footW) / 2,
+    y: item.y - h * p.footH,
+    w: w * p.footW,
+    h: h * p.footH,
+    sight: !!p.sight,
+  };
+}
+
+// Deterministic per-lot RNG, so a given lot always composes the same way
+// and the layouts stay stable to hand-edit.
+function lotRandom(seed) {
+  let s = seed * 9301 + 49297;
+  return () => { s = (s * 9301 + 49297) % 233280; return s / 233280; };
+}
+
+// Auto-seeded layout: a house set back from the street, decor spread across
+// the yard, and a lamppost at the kerb. Starting point for hand-editing.
+function seedLotScene(index) {
+  const rnd = lotRandom(index + 1);
+  const houseKey = ['house1', 'house2', 'house3'][index % 3];
+  const groundY = LOT_H - SIDEWALK_H;      // where the yard meets the walk
+  const items = [];
+
+  const houseX = LOT_W * (0.34 + rnd() * 0.32);
+  const houseBase = groundY - 132 - rnd() * 26;
+  items.push({ prop: houseKey, x: Math.round(houseX), y: Math.round(houseBase) });
+
+  // the walk from the street to the door stays clear; decor fills around it
+  const pathX = houseX;
+  const spots = [];
+  const tries = 40;
+  for (let i = 0; i < tries && spots.length < 12; i++) {
+    const x = 46 + rnd() * (LOT_W - 92);
+    const y = houseBase + 16 + rnd() * (groundY - houseBase - 26);
+    if (Math.abs(x - pathX) < 62) continue;                  // keep the walk open
+    if (spots.some((s) => Math.hypot(s.x - x, s.y - y) < 58)) continue;
+    spots.push({ x, y });
+  }
+  const kinds = ['bush', 'rock', 'bush', 'birdbath', 'bush', 'rock', 'bush', 'rock', 'bush', 'birdbath', 'rock', 'bush'];
+  spots.forEach((s, i) => items.push({ prop: kinds[i % kinds.length], x: Math.round(s.x), y: Math.round(s.y) }));
+  items.push({ prop: 'lamppost', x: Math.round(index % 2 ? 74 : LOT_W - 74), y: groundY + 24 });
+
+  return {
+    key: 'lot' + (index + 1),
+    w: LOT_W, h: LOT_H, sidewalkY: groundY,
+    items,
+    mailbox: { x: Math.round(pathX + 54), y: groundY - 16 },
+    dogSpawn: { x: Math.round(LOT_W / 2), y: Math.round((houseBase + groundY) / 2) },
+  };
+}
+
+const LOT_TYPES = [0, 1, 2, 3, 4].map(seedLotScene);
+
+// Collision is derived from the placements once the sprites have loaded,
+// since a footprint needs the sprite's aspect ratio to size correctly.
+function resolveLotCollision() {
+  for (const lot of LOT_TYPES) {
+    const houseItem = lot.items.find((it) => it.prop.startsWith('house'));
+    lot.house = houseItem ? propFootprint(houseItem) : { x: 0, y: 0, w: 0, h: 0 };
+    lot.solids = lot.items
+      .filter((it) => it !== houseItem && PROPS[it.prop].solid)
+      .map(propFootprint);
+  }
+}
+
 
 /* ---------- Level configs ---------- */
 const LEVELS = [
@@ -338,13 +317,6 @@ const LEVELS = [
   { houses: 9, breeds: ['pitbull', 'shepherd', 'goldenretriever', 'labrador'], doubleDogHouses: 5, bushChance: 0.05, desc: 'The final gauntlet. Every elite breed on the route.' },
 ];
 
-const STREET_W = 170;      // horizontal street band width
-const PLAYER_R = 11;       // player collision radius, also sizes mailbox approach clearance
-const WORLD_W = 880;       // fits the widest lot plus verge, and stays under
-                           // the 900px canvas so the camera never pans sideways
-const MARGIN_TOP = 150;    // grass verge above the first lot, where the player starts
-const MARGIN_BOTTOM = 150;
-const SKY_H = 96;          // decorative horizon strip, kept clear of the first lot
 
 // The route is one column of full-width lots stacked downward, each with a
 // horizontal street running along its front edge. Every lot is a single
@@ -995,14 +967,25 @@ function draw() {
 
   drawBackground(w);
   drawRoad(w);
-  for (const h of w.houses) drawLot(h);
+  for (const h of w.houses) drawLotGround(h);
   for (const h of w.houses) drawMailbox(h.mailbox);
 
   // vision cones on top of scenery, under the characters
   for (const h of w.houses) for (const dog of h.dogs) drawVisionCone(dog);
 
-  drawPlayer(w.player);
-  for (const h of w.houses) for (const dog of h.dogs) drawDog(dog);
+  // Props and characters share one depth-sorted pass, keyed on where each
+  // one meets the ground, so the player walks behind a house or bush that
+  // stands below them and in front of anything above.
+  const layer = [];
+  for (const h of w.houses) {
+    for (const item of h.lot.items) {
+      layer.push({ y: h.rect.y + item.y, draw: () => drawProp(item, h.rect.x, h.rect.y) });
+    }
+    for (const dog of h.dogs) layer.push({ y: dog.y, draw: () => drawDog(dog) });
+  }
+  layer.push({ y: w.player.y, draw: () => drawPlayer(w.player) });
+  layer.sort((a, b) => a.y - b.y);
+  for (const it of layer) it.draw();
 
   if (state.showCollision) drawCollisionDebug(w);
 
@@ -1011,28 +994,9 @@ function draw() {
   if (state.mode === 'caught') drawCaughtOverlay();
 }
 
-// A sidewalk runs down both flanks of every lot and turns along its top
-// edge, so each property reads as a framed plot joined to the street below
-// rather than a picture floating on grass. Skipped entirely when the tile
-// is missing -- a flat grey slab would look worse than the bare turf.
-function drawLotSurrounds(w) {
-  if (!tilePattern('sidewalk')) return;
-  const BAND = 34;
-  for (const h of w.houses) {
-    const r = h.rect;
-    const top = r.y - BAND, bottom = r.y + r.h;
-    // flanks, run from the walk above the lot down to the street below it
-    fillTiled('sidewalk', r.x - BAND, top, BAND, (bottom - top), null);
-    fillTiled('sidewalk', r.x + r.w, top, BAND, (bottom - top), null);
-    // the walk across the back of the lot, joining the two flanks
-    fillTiled('sidewalk', r.x - BAND, top, r.w + BAND * 2, BAND, null);
-  }
-}
-
 function drawBackground(w) {
   // tiled turf across the whole world; flat green if the tile is missing
   fillTiled('grass', 0, 0, w.worldW, w.worldH, '#4f8a4b');
-  drawLotSurrounds(w);
   // sky strip above the first row, with a soft gradient and drifting clouds
   const skyH = SKY_H;
   const sky = ctx.createLinearGradient(0, 0, 0, skyH);
@@ -1074,15 +1038,39 @@ function drawBackground(w) {
 // One lot = one hand-drawn scene image. Everything in it (house, trees,
 // benches, fountain, its own stone path and sidewalk) is baked into the art;
 // the matching collision rectangles live in LOT_TYPES.
-function drawLot(h) {
-  const img = IMAGES[`lots.${h.lot.key}`];
+// The ground of a lot: turf, with the sidewalk running along its frontage.
+// Props are not drawn here -- they go through the depth-sorted pass so the
+// player can walk behind them.
+function drawLotGround(h) {
   const r = h.rect;
-  if (img && img.complete && img.naturalHeight) {
-    ctx.drawImage(img, r.x, r.y, r.w, r.h);
-  } else {
-    ctx.fillStyle = '#5fa85a';
-    ctx.fillRect(r.x, r.y, r.w, r.h);
+  fillTiled('grass', r.x, r.y, r.w, r.h, '#5fa85a');
+  const walkY = r.y + h.lot.sidewalkY;
+  if (!drawStripX('sidewalk', r.x, walkY, r.w, SIDEWALK_H)) {
+    ctx.fillStyle = '#b8b09a';
+    ctx.fillRect(r.x, walkY, r.w, SIDEWALK_H);
   }
+}
+
+// Repeats a strip tile horizontally across `w`, scaled to `h` tall, clipped
+// so a partial tile at the end doesn't spill past the run.
+function drawStripX(key, x, y, w, h) {
+  const img = IMAGES[`tiles.${key}`];
+  if (!img || !img.complete || !img.naturalHeight) return false;
+  const tw = Math.max(1, Math.round(img.naturalWidth * (h / img.naturalHeight)));
+  ctx.save();
+  ctx.beginPath(); ctx.rect(x, y, w, h); ctx.clip();
+  for (let dx = 0; dx < w; dx += tw) ctx.drawImage(img, x + dx, y, tw, h);
+  ctx.restore();
+  return true;
+}
+
+// One prop placement, drawn bottom-centre at its ground point.
+function drawProp(item, ox, oy) {
+  const img = IMAGES[`props.${item.prop}`];
+  if (!img || !img.complete || !img.naturalHeight) return;
+  const dispH = PROPS[item.prop].h * (item.scale || 1);
+  const dispW = dispH * (img.naturalWidth / img.naturalHeight);
+  ctx.drawImage(img, ox + item.x - dispW / 2, oy + item.y - dispH, dispW, dispH);
 }
 
 // Toggled with the C key -- overlays the authored obstacle rectangles so
@@ -1327,8 +1315,17 @@ function drawPlayer(p) {
   ctx.ellipse(p.x, p.y + 16, 11, 4.5, 0, 0, Math.PI * 2);
   ctx.fill();
 
-  const frameSet = p.sneaking ? ['mailman.sneak0', 'mailman.sneak1'] : ['mailman.walk0', 'mailman.walk1'];
-  const img = IMAGES[frameSet[p.animFrame]];
+  // The new front-facing sprites match the composed scenes: a standing pose
+  // when still, the walking pose while moving. Sneaking keeps the older
+  // crouched frames, which have no front-facing equivalent yet.
+  let img;
+  if (p.sneaking) {
+    img = IMAGES[['mailman.sneak0', 'mailman.sneak1'][p.animFrame]];
+  } else if (p.moving) {
+    img = IMAGES['props.mailmanWalk'] || IMAGES[['mailman.walk0', 'mailman.walk1'][p.animFrame]];
+  } else {
+    img = IMAGES['props.mailmanStand'] || IMAGES['mailman.walk0'];
+  }
 
   ctx.save();
   ctx.translate(p.x, p.y);
@@ -1372,4 +1369,4 @@ document.getElementById('btn-resume').onclick = () => togglePause();
 document.getElementById('btn-pause-restart').onclick = () => { restartLevel(); };
 document.getElementById('btn-pause-menu').onclick = () => { state.mode = 'menu'; showOnly('menu'); };
 
-preloadImages(() => { state.mode = 'menu'; showOnly('menu'); });
+preloadImages(() => { resolveLotCollision(); state.mode = 'menu'; showOnly('menu'); });
