@@ -30,6 +30,16 @@ const ASSET_PATHS = {
     hurt: 'assets/mailman/hurt.png',
     victory: 'assets/mailman/victory.png',
   },
+  // Ground tiles, repeated to fill the space around the lots. Every one is
+  // optional: the preloader tolerates a missing file and each draw falls
+  // back to the flat colour it replaces, so the game still renders if a
+  // tile hasn't been added yet.
+  tiles: {
+    grass: 'assets/tiles/grass.png',
+    sidewalk: 'assets/tiles/sidewalk.png',
+    roadH: 'assets/tiles/road_h.png',
+    roadV: 'assets/tiles/road_v.png',
+  },
   lots: {
     brick: 'assets/houses/01_brick_cottage_yard.png',
     cabin: 'assets/houses/02_cabin_yard.png',
@@ -108,6 +118,37 @@ function dogAnimFrames(breedKey, cat) {
   const staticImg = IMAGES[`dogs.${breedKey}`];
   return staticImg ? [staticImg] : [];
 }
+/* ---------- Ground tiling ----------
+   Repeating tiles fill everything that isn't a lot: the grass around and
+   between properties, and the sidewalk framing them. Patterns are built
+   once and cached, and they inherit the camera transform, so the ground
+   scrolls with the world instead of sliding under it. */
+const PATTERNS = {};
+function tilePattern(key) {
+  if (key in PATTERNS) return PATTERNS[key];
+  const img = IMAGES[`tiles.${key}`];
+  PATTERNS[key] = (img && img.complete && img.naturalWidth)
+    ? ctx.createPattern(img, 'repeat')
+    : null;
+  return PATTERNS[key];
+}
+// Fills a rect with a tile, or with `fallback` when that tile is missing.
+// Pass fallback null to skip drawing entirely rather than paint a flat slab.
+function fillTiled(key, x, y, w, h, fallback) {
+  if (w <= 0 || h <= 0) return false;
+  const pat = tilePattern(key);
+  if (pat) {
+    ctx.fillStyle = pat;
+    ctx.fillRect(x, y, w, h);
+    return true;
+  }
+  if (fallback) {
+    ctx.fillStyle = fallback;
+    ctx.fillRect(x, y, w, h);
+  }
+  return false;
+}
+
 function drawSprite(img, x, y, dispH, anchor) {
   // anchor: 'center' (default) or 'bottom' (image bottom edge sits at y)
   if (!img || !img.complete || !img.naturalHeight) return;
@@ -969,9 +1010,28 @@ function draw() {
   if (state.mode === 'caught') drawCaughtOverlay();
 }
 
+// A sidewalk runs down both flanks of every lot and turns along its top
+// edge, so each property reads as a framed plot joined to the street below
+// rather than a picture floating on grass. Skipped entirely when the tile
+// is missing -- a flat grey slab would look worse than the bare turf.
+function drawLotSurrounds(w) {
+  if (!tilePattern('sidewalk')) return;
+  const BAND = 34;
+  for (const h of w.houses) {
+    const r = h.rect;
+    const top = r.y - BAND, bottom = r.y + r.h;
+    // flanks, run from the walk above the lot down to the street below it
+    fillTiled('sidewalk', r.x - BAND, top, BAND, (bottom - top), null);
+    fillTiled('sidewalk', r.x + r.w, top, BAND, (bottom - top), null);
+    // the walk across the back of the lot, joining the two flanks
+    fillTiled('sidewalk', r.x - BAND, top, r.w + BAND * 2, BAND, null);
+  }
+}
+
 function drawBackground(w) {
-  ctx.fillStyle = '#4f8a4b';
-  ctx.fillRect(0, 0, w.worldW, w.worldH);
+  // tiled turf across the whole world; flat green if the tile is missing
+  fillTiled('grass', 0, 0, w.worldW, w.worldH, '#4f8a4b');
+  drawLotSurrounds(w);
   // sky strip above the first row, with a soft gradient and drifting clouds
   const skyH = SKY_H;
   const sky = ctx.createLinearGradient(0, 0, 0, skyH);
