@@ -43,6 +43,12 @@ const ASSET_PATHS = {
   },
   // Individual scene sprites, pre-trimmed to their opaque bounds so a
   // placement is just a bottom-centre point with no padding to correct for.
+  vehicle: {
+    vanLeft: 'assets/vehicle/van_left.png',
+    vanRight: 'assets/vehicle/van_right.png',
+    vanFront: 'assets/vehicle/van_front.png',
+    vanRear: 'assets/vehicle/van_rear.png',
+  },
   props: {
     house1: 'assets/props/house1.png',
     house2: 'assets/props/house2.png',
@@ -192,6 +198,9 @@ const MAILBOX_STYLES = Object.keys(ASSET_PATHS.mailboxes);
 
 const STREET_W = 170;      // horizontal street band width
 const PLAYER_R = 11;       // player collision radius, also sizes mailbox approach clearance
+const VAN_H = 58;          // rendered van height; length follows the sprite's aspect
+const VAN_SPEED = 260;     // noticeably quicker than the 130 the carrier walks
+const VAN_ENTER_R = 62;    // how close you must be to climb in
 const WORLD_W = 880;       // fits the widest lot plus verge, and stays under
                            // the 900px canvas so the camera never pans sideways
 const MARGIN_TOP = 150;    // grass verge above the first lot, where the player starts
@@ -354,6 +363,12 @@ const LEVELS = [
 /* ---------- Utility ---------- */
 function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
 function dist(ax, ay, bx, by) { return Math.hypot(ax - bx, ay - by); }
+// Rotates `from` toward `to` by at most `maxStep`, the short way round.
+function turnToward(from, to, maxStep) {
+  const diff = normAngle(to - from);
+  if (Math.abs(diff) <= maxStep) return to;
+  return from + Math.sign(diff) * maxStep;
+}
 function normAngle(a) {
   while (a > Math.PI) a -= Math.PI * 2;
   while (a < -Math.PI) a += Math.PI * 2;
@@ -399,6 +414,7 @@ window.addEventListener('keydown', (e) => {
   if (e.key.toLowerCase() === 'p') togglePause();
   if (e.key.toLowerCase() === 'r' && state.mode === 'playing') restartLevel();
   if (e.key.toLowerCase() === 'c') state.showCollision = !state.showCollision;
+  if (e.key === ' ' && !e.repeat && state.mode === 'playing') toggleVan();
 });
 window.addEventListener('keyup', (e) => { keys[e.key.toLowerCase()] = false; });
 
@@ -448,6 +464,7 @@ function buildWorld(levelIndex) {
   const cfg = LEVELS[levelIndex];
   const houses = [];
   const crossStreets = [];
+  const vans = [];
   const worldW = WORLD_W;
 
   // stack lots downward: lot, then the street along its front edge, repeat
@@ -457,6 +474,16 @@ function buildWorld(levelIndex) {
     houses.push(makeHouse(lot, Math.round((worldW - lot.w) / 2), cursorY, cfg, i));
     const streetY0 = cursorY + lot.h;
     crossStreets.push({ y0: streetY0, y1: streetY0 + STREET_W });
+    // A van waits on every street. The streets are separated by the lots
+    // with no road joining them, so a single van could only ever serve the
+    // two properties either side of its own street.
+    vans.push({
+      x: Math.round(worldW * (i % 2 ? 0.68 : 0.32)),
+      y: streetY0 + STREET_W / 2,
+      band: { y0: streetY0, y1: streetY0 + STREET_W },
+      facing: i % 2 ? -1 : 1,
+      moving: false,
+    });
     cursorY = streetY0 + STREET_W;
   }
 
@@ -509,6 +536,7 @@ function buildWorld(levelIndex) {
     worldW,
     worldH,
     crossStreets,
+    vans,
     totalMail,
     delivered: 0,
     decor: { roadSpeckles, clouds, verge, tufts },
@@ -703,9 +731,66 @@ function togglePause() {
 }
 
 /* ---------- Update ---------- */
+// Climbing in and out of the mail van. The carrier is invisible to the dogs
+// while inside it, but can't deliver from the driver's seat either -- the
+// mailboxes are all up at the houses, so the van only ever gets you to the
+// kerb faster.
+function toggleVan() {
+  const w = state.world;
+  if (!w) return;
+  const p = w.player;
+  if (p.van) {
+    // step out onto the kerb side, or the other side if that's blocked
+    const van = p.van;
+    const spots = [
+      { x: van.x, y: van.band.y1 + 16 },
+      { x: van.x, y: van.band.y0 - 16 },
+      { x: van.x - 46, y: van.y },
+      { x: van.x + 46, y: van.y },
+    ];
+    const clear = spots.find((sp) => !w.houses.some((h) => h.solids.some((sd) => circleRectOverlap(sp.x, sp.y, p.r, sd))));
+    const out = clear || spots[0];
+    p.x = clamp(out.x, p.r, w.worldW - p.r);
+    p.y = clamp(out.y, p.r, w.worldH - p.r);
+    p.van = null;
+    return;
+  }
+  const near = w.vans.find((v) => dist(p.x, p.y, v.x, v.y) < VAN_ENTER_R);
+  if (near) { p.van = near; p.x = near.x; p.y = near.y; }
+}
+
+// True while the carrier is close enough to climb into a van on foot.
+function vanInReach(w) {
+  const p = w.player;
+  if (p.van) return null;
+  return w.vans.find((v) => dist(p.x, p.y, v.x, v.y) < VAN_ENTER_R) || null;
+}
+
+function updateVan(dt) {
+  const w = state.world;
+  const p = w.player;
+  const van = p.van;
+  let dx = 0, dy = 0;
+  if (keys['arrowup'] || keys['w']) dy -= 1;
+  if (keys['arrowdown'] || keys['s']) dy += 1;
+  if (keys['arrowleft'] || keys['a']) dx -= 1;
+  if (keys['arrowright'] || keys['d']) dx += 1;
+  van.moving = dx !== 0 || dy !== 0;
+  if (van.moving) {
+    const len = Math.hypot(dx, dy);
+    van.x = clamp(van.x + (dx / len) * VAN_SPEED * dt, 60, w.worldW - 60);
+    // the van stays on the tarmac -- it can drive the length of its street
+    // but never up onto a lawn
+    van.y = clamp(van.y + (dy / len) * VAN_SPEED * dt, van.band.y0 + 34, van.band.y1 - 24);
+    if (dx !== 0) van.facing = dx < 0 ? -1 : 1;
+  }
+  p.x = van.x; p.y = van.y;
+}
+
 function updatePlayer(dt) {
   const w = state.world;
   const p = w.player;
+  if (p.van) { updateVan(dt); return; }   // no walking, and no delivering, from the driver's seat
   let dx = 0, dy = 0;
   if (keys['arrowup'] || keys['w']) dy -= 1;
   if (keys['arrowdown'] || keys['s']) dy += 1;
@@ -776,6 +861,41 @@ function updateDog(dog, house, dt, w) {
     }
   }
 
+  // Alert lock-on. While the dog can actually see the player it drops its
+  // patrol, turns to track them and closes a little distance -- it never
+  // leaves the yard it guards. After the player breaks line of sight it
+  // keeps staring at where they were for a moment before resuming its
+  // roam, so slipping behind cover doesn't instantly reset it.
+  const target = w.player;
+  if (dog.seen) {
+    dog.alertX = target.x;
+    dog.alertY = target.y;
+    dog.lostTimer = 1.4;
+  }
+  if (dog.lostTimer > 0) {
+    dog.lostTimer -= dt;
+    const want = Math.atan2(dog.alertY - dog.y, dog.alertX - dog.x);
+    dog.angle = turnToward(dog.angle, want, 7 * dt);
+    dog.wanderPhase = 'paused';        // drop the patrol; re-picked on resume
+    dog.wanderTimer = 0.25;
+    if (dog.seen) {
+      const dogR = 12 * breed.size;
+      const dx = target.x - dog.x, dy = target.y - dog.y;
+      const d = Math.hypot(dx, dy);
+      if (d > 26) {                    // stalk closer, but don't sit on top of them
+        const step = breed.speed * 0.5 * dt;
+        const nx = dog.x + (dx / d) * step;
+        const ny = dog.y + (dy / d) * step;
+        const yr0 = house.yardRect;
+        if (!house.solids.some((s) => circleRectOverlap(nx, dog.y, dogR, s))
+            && nx > yr0.x + 8 && nx < yr0.x + yr0.w - 8) dog.x = nx;
+        if (!house.solids.some((s) => circleRectOverlap(dog.x, ny, dogR, s))
+            && ny > yr0.y + 8 && ny < yr0.y + yr0.h - 8) dog.y = ny;
+      }
+    }
+    return;
+  }
+
   // Dogs roam freely around the whole yard: walk to a random point inside
   // it, pause there for a bit (swaying/sweeping their gaze), then pick a
   // new point. Behavior still gives each breed a distinct feel: 'sentry'
@@ -835,6 +955,7 @@ function updateDog(dog, house, dt, w) {
 
 function canSeePlayer(dog, house, p) {
   if (dog.state === 'asleep') return false;
+  if (p.van) return false;               // shut inside the van, out of sight
   const breed = dog.breed;
   const d = dist(dog.x, dog.y, p.x, p.y);
 
@@ -1010,13 +1131,38 @@ function draw() {
     }
     for (const dog of h.dogs) layer.push({ y: dog.y, draw: () => drawDog(dog) });
   }
-  layer.push({ y: w.player.y, draw: () => drawPlayer(w.player) });
+  for (const van of w.vans) layer.push({ y: van.y + VAN_H / 2, draw: () => drawVan(van) });
+  // the carrier is inside the van, so the van sprite stands in for them
+  if (!w.player.van) layer.push({ y: w.player.y, draw: () => drawPlayer(w.player) });
   layer.sort((a, b) => a.y - b.y);
   for (const it of layer) it.draw();
 
   if (state.showCollision) drawCollisionDebug(w);
 
   ctx.restore();
+
+  const reach = vanInReach(w);
+  if (reach) {
+    const sx = reach.x - state.camX, sy = reach.y - state.camY - VAN_H / 2 - 14;
+    ctx.font = 'bold 13px sans-serif';
+    ctx.textAlign = 'center';
+    const label = 'SPACE to drive';
+    const tw = ctx.measureText(label).width;
+    ctx.fillStyle = 'rgba(12,16,14,0.82)';
+    ctx.fillRect(sx - tw / 2 - 9, sy - 15, tw + 18, 21);
+    ctx.fillStyle = '#e8b04b';
+    ctx.fillText(label, sx, sy);
+  } else if (w.player.van) {
+    ctx.font = 'bold 13px sans-serif';
+    ctx.textAlign = 'center';
+    const label = 'SPACE to hop out';
+    const tw = ctx.measureText(label).width;
+    const sx = w.player.x - state.camX, sy = w.player.y - state.camY - VAN_H / 2 - 14;
+    ctx.fillStyle = 'rgba(12,16,14,0.82)';
+    ctx.fillRect(sx - tw / 2 - 9, sy - 15, tw + 18, 21);
+    ctx.fillStyle = '#e8b04b';
+    ctx.fillText(label, sx, sy);
+  }
 
   if (state.mode === 'caught') drawCaughtOverlay();
 }
@@ -1336,6 +1482,18 @@ function drawDog(dog) {
 // direction -- it never rotates to "face" up/down, which would make a
 // bipedal sprite flop onto its side. Vertical movement keeps the last
 // horizontal facing, matching classic top-down character rendering.
+function drawVan(van) {
+  const key = van.facing < 0 ? 'vehicle.vanLeft' : 'vehicle.vanRight';
+  const img = IMAGES[key];
+  if (!img || !img.complete || !img.naturalHeight) return;
+  const h = VAN_H, wpx = h * (img.naturalWidth / img.naturalHeight);
+  ctx.fillStyle = 'rgba(0,0,0,0.28)';
+  ctx.beginPath();
+  ctx.ellipse(van.x, van.y + h / 2 - 4, wpx * 0.42, h * 0.13, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.drawImage(img, van.x - wpx / 2, van.y - h / 2, wpx, h);
+}
+
 function drawPlayer(p) {
   ctx.fillStyle = 'rgba(0,0,0,0.25)';
   ctx.beginPath();
