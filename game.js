@@ -201,8 +201,8 @@ const PLAYER_R = 11;       // player collision radius, also sizes mailbox approa
 const VAN_H = 58;          // rendered van height; length follows the sprite's aspect
 const VAN_SPEED = 260;     // noticeably quicker than the 130 the carrier walks
 const VAN_ENTER_R = 62;    // how close you must be to climb in
-const WORLD_W = 880;       // fits the widest lot plus verge, and stays under
-                           // the 900px canvas so the camera never pans sideways
+const WORLD_W = 900;       // exactly the canvas width: fills it edge to edge,
+                           // and the camera never pans sideways
 const MARGIN_TOP = 150;    // grass verge above the first lot, where the player starts
 const MARGIN_BOTTOM = 150;
 const SKY_H = 96;          // decorative horizon strip, kept clear of the first lot
@@ -231,8 +231,8 @@ const PROPS = {
   lamppost: { h: 92,  footH: 0.10, footW: 0.30, solid: true },
 };
 
-const LOT_W = WORLD_W;     // scenes span the full width, so there are no
-                           // ragged grass flanks left over beside a lot
+const VROAD_W = 120;       // vertical road down the left, joining every street
+const LOT_W = WORLD_W - VROAD_W;  // lots fill the rest, so no ragged grass flanks
 const LOT_H = 430;
 const SIDEWALK_H = 36;     // the walk along the front of every property
 
@@ -304,23 +304,23 @@ const AUTHORED_SCENES = {
   0: {
     key: 'lot1', w: LOT_W, h: LOT_H, sidewalkY: 394,
     items: [
-      { prop: 'house1', x: 453, y: 253 },
-      { prop: 'bush', x: 698, y: 267 },
-      { prop: 'rock', x: 197, y: 392 },
-      { prop: 'bush', x: 416, y: 394 },
-      { prop: 'birdbath', x: 198, y: 164 },
-      { prop: 'bush', x: 306, y: 298 },
-      { prop: 'rock', x: 239, y: 72 },
-      { prop: 'bush', x: 677, y: 145 },
-      { prop: 'rock', x: 676, y: 384 },
-      { prop: 'bush', x: 291, y: 207 },
-      { prop: 'birdbath', x: 572, y: 333, scale: 1.09 },
-      { prop: 'rock', x: 613, y: 240 },
-      { prop: 'bush', x: 285, y: 329 },
-      { prop: 'lamppost', x: 130, y: 419 },
-      { prop: 'lamppost', x: 833, y: 423 },
+      { prop: 'house1', x: 401, y: 253 },
+      { prop: 'bush', x: 619, y: 267 },
+      { prop: 'rock', x: 174, y: 392 },
+      { prop: 'bush', x: 368, y: 394 },
+      { prop: 'birdbath', x: 176, y: 164 },
+      { prop: 'bush', x: 271, y: 298 },
+      { prop: 'rock', x: 211, y: 72 },
+      { prop: 'bush', x: 600, y: 145 },
+      { prop: 'rock', x: 599, y: 384 },
+      { prop: 'bush', x: 258, y: 207 },
+      { prop: 'birdbath', x: 507, y: 333, scale: 1.09 },
+      { prop: 'rock', x: 543, y: 240 },
+      { prop: 'bush', x: 252, y: 329 },
+      { prop: 'lamppost', x: 115, y: 419 },
+      { prop: 'lamppost', x: 738, y: 423 },
     ],
-    mailbox: { x: 466, y: 265 }, dogSpawn: { x: 440, y: 324 },
+    mailbox: { x: 413, y: 265 }, dogSpawn: { x: 390, y: 324 },
   },
 };
 
@@ -471,23 +471,16 @@ function buildWorld(levelIndex) {
   let cursorY = MARGIN_TOP;
   for (let i = 0; i < cfg.houses; i++) {
     const lot = LOT_TYPES[i % LOT_TYPES.length];
-    houses.push(makeHouse(lot, Math.round((worldW - lot.w) / 2), cursorY, cfg, i));
+    houses.push(makeHouse(lot, VROAD_W, cursorY, cfg, i));
     const streetY0 = cursorY + lot.h;
     crossStreets.push({ y0: streetY0, y1: streetY0 + STREET_W });
-    // A van waits on every street. The streets are separated by the lots
-    // with no road joining them, so a single van could only ever serve the
-    // two properties either side of its own street.
-    vans.push({
-      x: Math.round(worldW * (i % 2 ? 0.68 : 0.32)),
-      y: streetY0 + STREET_W / 2,
-      band: { y0: streetY0, y1: streetY0 + STREET_W },
-      facing: i % 2 ? -1 : 1,
-      moving: false,
-    });
     cursorY = streetY0 + STREET_W;
   }
 
   const worldH = cursorY + MARGIN_BOTTOM;
+  // One van, parked on the vertical road -- that road joins every street, so
+  // a single van can reach the whole route.
+  vans.push({ x: Math.round(VROAD_W / 2), y: MARGIN_TOP + 40, facing: 'down', moving: false });
   const totalMail = houses.length;
 
   // static decorative elements, precomputed once so they don't flicker/jitter each frame
@@ -529,7 +522,7 @@ function buildWorld(levelIndex) {
     }
   }
 
-  const startX = worldW / 2;
+  const startX = VROAD_W / 2;
   return {
     cfg,
     houses,
@@ -743,10 +736,8 @@ function toggleVan() {
     // step out onto the kerb side, or the other side if that's blocked
     const van = p.van;
     const spots = [
-      { x: van.x, y: van.band.y1 + 16 },
-      { x: van.x, y: van.band.y0 - 16 },
-      { x: van.x - 46, y: van.y },
-      { x: van.x + 46, y: van.y },
+      { x: van.x + 52, y: van.y }, { x: van.x - 52, y: van.y },
+      { x: van.x, y: van.y + 48 }, { x: van.x, y: van.y - 48 },
     ];
     const clear = spots.find((sp) => !w.houses.some((h) => h.solids.some((sd) => circleRectOverlap(sp.x, sp.y, p.r, sd))));
     const out = clear || spots[0];
@@ -766,6 +757,15 @@ function vanInReach(w) {
   return w.vans.find((v) => dist(p.x, p.y, v.x, v.y) < VAN_ENTER_R) || null;
 }
 
+// True where a van may sit: anywhere along the vertical road, or within the
+// tarmac of any cross street. The two overlap at each junction, which is what
+// lets the van turn off one onto the other.
+function vanOnRoad(w, x, y) {
+  const M = 30;
+  if (x > M && x < VROAD_W - 26) return true;
+  return w.crossStreets.some((b) => y > b.y0 + M && y < b.y1 - 24) && x > M && x < w.worldW - M;
+}
+
 function updateVan(dt) {
   const w = state.world;
   const p = w.player;
@@ -778,11 +778,14 @@ function updateVan(dt) {
   van.moving = dx !== 0 || dy !== 0;
   if (van.moving) {
     const len = Math.hypot(dx, dy);
-    van.x = clamp(van.x + (dx / len) * VAN_SPEED * dt, 60, w.worldW - 60);
-    // the van stays on the tarmac -- it can drive the length of its street
-    // but never up onto a lawn
-    van.y = clamp(van.y + (dy / len) * VAN_SPEED * dt, van.band.y0 + 34, van.band.y1 - 24);
-    if (dx !== 0) van.facing = dx < 0 ? -1 : 1;
+    const stepX = (dx / len) * VAN_SPEED * dt;
+    const stepY = (dy / len) * VAN_SPEED * dt;
+    // per-axis, so running along a road while pushing into its kerb still
+    // slides rather than sticking
+    if (vanOnRoad(w, van.x + stepX, van.y)) van.x += stepX;
+    if (vanOnRoad(w, van.x, van.y + stepY)) van.y += stepY;
+    if (Math.abs(dx) > Math.abs(dy)) van.facing = dx < 0 ? 'left' : 'right';
+    else if (dy !== 0) van.facing = dy < 0 ? 'up' : 'down';
   }
   p.x = van.x; p.y = van.y;
 }
@@ -1281,6 +1284,31 @@ function drawSidewalkPavers(x0, y0, w, h, vertical) {
   }
 }
 
+// The road running the full height of the map down the left-hand side. It
+// crosses every cross street, which is what lets the van reach the whole
+// route instead of being stuck on one street.
+function drawVerticalStreet(worldH) {
+  ctx.fillStyle = '#bdb6a2';
+  ctx.fillRect(0, 0, VROAD_W, worldH);
+  drawSidewalkPavers(VROAD_W - 30, 0, 30, worldH, true);
+  const grad = ctx.createLinearGradient(0, 0, VROAD_W - 30, 0);
+  grad.addColorStop(0, '#4c4f52');
+  grad.addColorStop(0.5, '#5a5e62');
+  grad.addColorStop(1, '#4c4f52');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, VROAD_W - 30, worldH);
+  ctx.strokeStyle = 'rgba(0,0,0,0.35)';
+  ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(VROAD_W - 30, 0); ctx.lineTo(VROAD_W - 30, worldH); ctx.stroke();
+  ctx.strokeStyle = '#ecc94a';
+  ctx.lineWidth = 3;
+  ctx.setLineDash([16, 14]);
+  ctx.beginPath();
+  ctx.moveTo((VROAD_W - 30) / 2, 0); ctx.lineTo((VROAD_W - 30) / 2, worldH);
+  ctx.stroke();
+  ctx.setLineDash([]);
+}
+
 function drawHorizontalStreet(streetY0, worldW) {
   const y0 = streetY0, y1 = streetY0 + STREET_W;
   ctx.fillStyle = '#bdb6a2';
@@ -1305,6 +1333,7 @@ function drawHorizontalStreet(streetY0, worldW) {
 }
 
 function drawRoad(w) {
+  drawVerticalStreet(w.worldH);
   for (const band of w.crossStreets) {
     drawHorizontalStreet(band.y0, w.worldW);
   }
@@ -1483,8 +1512,9 @@ function drawDog(dog) {
 // bipedal sprite flop onto its side. Vertical movement keeps the last
 // horizontal facing, matching classic top-down character rendering.
 function drawVan(van) {
-  const key = van.facing < 0 ? 'vehicle.vanLeft' : 'vehicle.vanRight';
-  const img = IMAGES[key];
+  const img = IMAGES[{ left: 'vehicle.vanLeft', right: 'vehicle.vanRight',
+                       up: 'vehicle.vanRear', down: 'vehicle.vanFront' }[van.facing]
+                     || 'vehicle.vanRight'];
   if (!img || !img.complete || !img.naturalHeight) return;
   const h = VAN_H, wpx = h * (img.naturalWidth / img.naturalHeight);
   ctx.fillStyle = 'rgba(0,0,0,0.28)';
