@@ -386,12 +386,12 @@ const VAN_H = 69;          // rendered van height; the sprite includes the tyres
                            // so this is taller than the body alone. Length follows the aspect.
 const VAN_SPEED = 260;     // noticeably quicker than the 130 the carrier walks
 const VAN_ENTER_R = 62;    // how close you must be to climb in, and to restock from it
-const SATCHEL = 5;         // letters the carrier holds before returning to the van
+const SATCHEL = 2;         // letters the carrier holds before returning to the van
 const HORN_R = 520;        // how far the horn carries: comfortably covers the
                            // yard you are parked alongside, but not the next
                            // lot's, so where you park still decides who hears
 const HORN_LURE = 3.6;     // seconds a lured dog spends investigating the noise
-const HORN_COOLDOWN = 6;   // seconds before the horn can be sounded again
+const HORN_COOLDOWN = 2.5; // seconds before the horn can be sounded again
 const WORLD_W = 900;       // exactly the canvas width: fills it edge to edge,
                            // and the camera never pans sideways
 const MARGIN_TOP = 150;    // grass verge above the first lot, where the player starts
@@ -1499,27 +1499,15 @@ function draw() {
 
   const reach = vanInReach(w);
   if (reach) {
-    const sx = reach.x - state.camX, sy = reach.y - state.camY - VAN_H / 2 - 14;
-    ctx.font = 'bold 13px sans-serif';
-    ctx.textAlign = 'center';
-    const label = 'SPACE to drive';
-    const tw = ctx.measureText(label).width;
-    ctx.fillStyle = 'rgba(12,16,14,0.82)';
-    ctx.fillRect(sx - tw / 2 - 9, sy - 15, tw + 18, 21);
-    ctx.fillStyle = '#e8b04b';
-    ctx.fillText(label, sx, sy);
+    drawPrompt(reach.x - state.camX, reach.y - state.camY - VAN_H / 2 - 14, 'SPACE to drive');
   } else if (w.player.van) {
-    ctx.font = 'bold 13px sans-serif';
-    ctx.textAlign = 'center';
-    const label = w.player.van.hornCd > 0
-      ? `horn ready in ${w.player.van.hornCd.toFixed(1)}s`
-      : 'SPACE to hop out  ·  H to sound the horn';
-    const tw = ctx.measureText(label).width;
-    const sx = w.player.x - state.camX, sy = w.player.y - state.camY - VAN_H / 2 - 14;
-    ctx.fillStyle = 'rgba(12,16,14,0.82)';
-    ctx.fillRect(sx - tw / 2 - 9, sy - 15, tw + 18, 21);
-    ctx.fillStyle = '#e8b04b';
-    ctx.fillText(label, sx, sy);
+    // The label never changes -- a prompt that rewrites itself into a
+    // countdown loses the controls just when you're reading them. The horn's
+    // recharge shows as a bar under it instead, and only while it's cooling.
+    const van = w.player.van;
+    drawPrompt(w.player.x - state.camX, w.player.y - state.camY - VAN_H / 2 - 14,
+               'SPACE to hop out  ·  H to honk',
+               van.hornCd > 0 ? 1 - van.hornCd / HORN_COOLDOWN : 0);
   }
 
   if (state.mode === 'caught') drawCaughtOverlay();
@@ -1866,6 +1854,25 @@ function drawDog(dog) {
 // direction -- it never rotates to "face" up/down, which would make a
 // bipedal sprite flop onto its side. Vertical movement keeps the last
 // horizontal facing, matching classic top-down character rendering.
+// A small caption above something you can interact with. `recharge` (0..1),
+// when given, draws a refill bar beneath it -- omit or pass 0 for no bar.
+function drawPrompt(sx, sy, label, recharge) {
+  ctx.font = 'bold 13px sans-serif';
+  ctx.textAlign = 'center';
+  const tw = ctx.measureText(label).width;
+  const boxW = tw + 18, boxX = sx - boxW / 2;
+  ctx.fillStyle = 'rgba(12,16,14,0.82)';
+  ctx.fillRect(boxX, sy - 15, boxW, recharge ? 25 : 21);
+  ctx.fillStyle = '#e8b04b';
+  ctx.fillText(label, sx, sy);
+  if (recharge) {
+    ctx.fillStyle = 'rgba(232,176,75,0.25)';
+    ctx.fillRect(boxX + 6, sy + 4, boxW - 12, 3);
+    ctx.fillStyle = '#e8b04b';
+    ctx.fillRect(boxX + 6, sy + 4, (boxW - 12) * clamp(recharge, 0, 1), 3);
+  }
+}
+
 function drawVan(van) {
   const img = IMAGES[{ left: 'vehicle.vanLeft', right: 'vehicle.vanRight',
                        up: 'vehicle.vanRear', down: 'vehicle.vanFront' }[van.facing]
