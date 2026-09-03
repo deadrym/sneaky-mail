@@ -7,6 +7,177 @@ ctx.imageSmoothingEnabled = false; // keep sprite scaling crisp/nearest-neighbor
 const VIEW_W = canvas.width;
 const VIEW_H = canvas.height;
 
+/* ---------- Sound ----------
+   Every effect is synthesised through the Web Audio API rather than loaded
+   from a file, so the game stays a no-build, no-asset-download page. The
+   context can't be created until the player interacts (browsers block
+   autoplay), so it's built lazily on the first key press and everything
+   before that is a silent no-op.
+   Barks are attenuated by how far the dog is from the player, which turns
+   the pack into a rough proximity cue: a bark right behind you is loud, one
+   two streets away is a distant yap. */
+const SFX = {
+  actx: null,
+  master: null,
+  noise: null,
+  engine: null,
+  muted: (() => { try { return localStorage.getItem('sneakyMailMuted') === '1'; } catch (e) { return false; } })(),
+
+  init() {
+    if (this.actx) return;
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return;
+    this.actx = new AC();
+    this.master = this.actx.createGain();
+    this.master.gain.value = this.muted ? 0 : 0.9;
+    this.master.connect(this.actx.destination);
+    // one second of white noise, reused for barks, footsteps and engine grit
+    const len = this.actx.sampleRate;
+    this.noise = this.actx.createBuffer(1, len, this.actx.sampleRate);
+    const d = this.noise.getChannelData(0);
+    for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+  },
+
+  resume() {
+    this.init();
+    if (this.actx && this.actx.state === 'suspended') this.actx.resume();
+  },
+
+  setMuted(m) {
+    this.muted = m;
+    try { localStorage.setItem('sneakyMailMuted', m ? '1' : '0'); } catch (e) { /* private mode */ }
+    if (this.master) this.master.gain.value = m ? 0 : 0.9;
+  },
+
+  // shared helpers -------------------------------------------------------
+  env(node, t0, peak, attack, decay) {
+    const g = this.actx.createGain();
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.exponentialRampToValueAtTime(Math.max(0.0001, peak), t0 + attack);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + attack + decay);
+    node.connect(g);
+    g.connect(this.master);
+    return g;
+  },
+  tone(type, freq, t0, peak, attack, decay, freqTo) {
+    const o = this.actx.createOscillator();
+    o.type = type;
+    o.frequency.setValueAtTime(freq, t0);
+    if (freqTo) o.frequency.exponentialRampToValueAtTime(freqTo, t0 + attack + decay);
+    this.env(o, t0, peak, attack, decay);
+    o.start(t0);
+    o.stop(t0 + attack + decay + 0.02);
+    return o;
+  },
+  burst(t0, peak, decay, freq, q) {
+    const s = this.actx.createBufferSource();
+    s.buffer = this.noise;
+    s.loop = true;
+    const f = this.actx.createBiquadFilter();
+    f.type = 'bandpass';
+    f.frequency.setValueAtTime(freq, t0);
+    f.Q.value = q || 1;
+    s.connect(f);
+    this.env(f, t0, peak, 0.005, decay);
+    s.start(t0);
+    s.stop(t0 + decay + 0.05);
+  },
+
+  // effects --------------------------------------------------------------
+  // `gain` lets callers fade a bark by distance
+  bark(gain) {
+    if (!this.actx || this.muted) return;
+    const t = this.actx.currentTime, g = gain === undefined ? 1 : gain;
+    if (g < 0.02) return;
+    this.burst(t, 0.5 * g, 0.10, 900, 1.2);
+    this.tone('square', 320, t, 0.22 * g, 0.008, 0.10, 150);
+    this.burst(t + 0.15, 0.34 * g, 0.08, 780, 1.2);
+    this.tone('square', 290, t + 0.15, 0.15 * g, 0.008, 0.08, 140);
+  },
+  step(sneaking) {
+    if (!this.actx || this.muted) return;
+    const t = this.actx.currentTime;
+    this.burst(t, sneaking ? 0.035 : 0.09, 0.045, sneaking ? 500 : 850, 0.8);
+  },
+  deliver() {
+    if (!this.actx || this.muted) return;
+    const t = this.actx.currentTime;
+    this.tone('sine', 659, t, 0.20, 0.01, 0.13);          // E5
+    this.tone('sine', 988, t + 0.09, 0.18, 0.01, 0.20);   // B5
+  },
+  busted() {
+    if (!this.actx || this.muted) return;
+    const t = this.actx.currentTime;
+    this.tone('sawtooth', 420, t, 0.30, 0.01, 0.55, 90);
+    this.burst(t, 0.25, 0.30, 300, 0.7);
+  },
+  levelDone() {
+    if (!this.actx || this.muted) return;
+    const t = this.actx.currentTime;
+    [523, 659, 784, 1047].forEach((f, i) => this.tone('triangle', f, t + i * 0.10, 0.20, 0.01, 0.24));
+  },
+  doorThunk() {
+    if (!this.actx || this.muted) return;
+    const t = this.actx.currentTime;
+    this.tone('sine', 150, t, 0.28, 0.005, 0.11, 60);
+    this.burst(t, 0.12, 0.06, 1600, 1.5);
+  },
+
+  // A looping engine whose gain and pitch follow whether the van is rolling,
+  // started only once the player actually climbs in.
+  engineOn() {
+    if (!this.actx || this.engine) return;
+    const t = this.actx.currentTime;
+    const osc = this.actx.createOscillator();
+    osc.type = 'sawtooth';
+    osc.frequency.value = 62;
+    const sub = this.actx.createOscillator();
+    sub.type = 'square';
+    sub.frequency.value = 31;
+    const grit = this.actx.createBufferSource();
+    grit.buffer = this.noise;
+    grit.loop = true;
+    const gritGain = this.actx.createGain();
+    gritGain.gain.value = 0.04;
+    const lp = this.actx.createBiquadFilter();
+    lp.type = 'lowpass';
+    lp.frequency.value = 320;
+    const g = this.actx.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.10, t + 0.25);
+    osc.connect(lp); sub.connect(lp); grit.connect(gritGain); gritGain.connect(lp);
+    lp.connect(g); g.connect(this.master);
+    osc.start(t); sub.start(t); grit.start(t);
+    this.engine = { osc, sub, grit, g, lp };
+  },
+  engineRev(moving) {
+    if (!this.engine || !this.actx) return;
+    const t = this.actx.currentTime;
+    const e = this.engine;
+    e.osc.frequency.setTargetAtTime(moving ? 96 : 62, t, 0.12);
+    e.sub.frequency.setTargetAtTime(moving ? 48 : 31, t, 0.12);
+    e.lp.frequency.setTargetAtTime(moving ? 520 : 320, t, 0.15);
+    e.g.gain.setTargetAtTime(moving ? 0.16 : 0.09, t, 0.12);
+  },
+  engineOff() {
+    if (!this.engine || !this.actx) return;
+    const t = this.actx.currentTime, e = this.engine;
+    e.g.gain.cancelScheduledValues(t);
+    e.g.gain.setValueAtTime(Math.max(0.0001, e.g.gain.value), t);
+    e.g.gain.exponentialRampToValueAtTime(0.0001, t + 0.30);
+    [e.osc, e.sub, e.grit].forEach((n) => n.stop(t + 0.34));
+    this.engine = null;
+  },
+};
+
+// How loud a sound at (x, y) should be for the player's current position.
+function sfxGainAt(x, y) {
+  const w = state.world;
+  if (!w) return 1;
+  const d = dist(x, y, w.player.x, w.player.y);
+  return clamp(1 - d / 620, 0, 1) ** 1.6;
+}
+
 /* ---------- Sprite assets ---------- */
 const ASSET_PATHS = {
   dogs: {
@@ -481,11 +652,13 @@ function segSegIntersect(x1, y1, x2, y2, x3, y3, x4, y4) {
 /* ---------- Input ---------- */
 const keys = {};
 window.addEventListener('keydown', (e) => {
+  SFX.resume();                       // browsers only allow audio after a gesture
   keys[e.key.toLowerCase()] = true;
   if (['arrowup', 'arrowdown', 'arrowleft', 'arrowright', ' '].includes(e.key.toLowerCase())) e.preventDefault();
   if (e.key.toLowerCase() === 'p') togglePause();
   if (e.key.toLowerCase() === 'r' && state.mode === 'playing') restartLevel();
   if (e.key.toLowerCase() === 'c') state.showCollision = !state.showCollision;
+  if (e.key.toLowerCase() === 'm') { SFX.setMuted(!SFX.muted); updateHud(); }
   if (e.key === ' ' && !e.repeat && state.mode === 'playing') toggleVan();
 });
 window.addEventListener('keyup', (e) => { keys[e.key.toLowerCase()] = false; });
@@ -718,6 +891,7 @@ function startGame() {
 }
 
 function goToLevelIntro() {
+  SFX.engineOff();
   state.world = buildWorld(state.level);
   const cfg = LEVELS[state.level];
   document.getElementById('li-title').textContent = `Street ${state.level + 1} of ${LEVELS.length}`;
@@ -743,6 +917,7 @@ function beginPlaying() {
 }
 
 function restartLevel() {
+  SFX.engineOff();
   state.world = buildWorld(state.level);
   beginPlaying();
 }
@@ -761,6 +936,8 @@ function loseLife(msg) {
 }
 
 function levelComplete() {
+  SFX.levelDone();
+  SFX.engineOff();
   state.mode = 'levelcomplete';
   document.getElementById('lc-msg').textContent =
     `Every mailbox on Street ${state.level + 1} served without a single bark.`;
@@ -782,6 +959,11 @@ function updateHud() {
   const w = state.world;
   document.getElementById('hud-mail').textContent = w ? `Mail ${w.delivered}/${w.totalMail}` : 'Mail 0/0';
   document.getElementById('hud-lives').textContent = '❤'.repeat(Math.max(0, state.lives));
+  const mute = document.getElementById('hud-mute');
+  if (mute) {
+    mute.textContent = SFX.muted ? '🔇' : '🔊';
+    mute.title = SFX.muted ? 'Muted (M)' : 'Sound on (M)';
+  }
 }
 
 function togglePause() {
@@ -816,10 +998,12 @@ function toggleVan() {
     p.x = clamp(out.x, p.r, w.worldW - p.r);
     p.y = clamp(out.y, p.r, w.worldH - p.r);
     p.van = null;
+    SFX.doorThunk();
+    SFX.engineOff();
     return;
   }
   const near = w.vans.find((v) => dist(p.x, p.y, v.x, v.y) < VAN_ENTER_R);
-  if (near) { p.van = near; p.x = near.x; p.y = near.y; }
+  if (near) { p.van = near; p.x = near.x; p.y = near.y; SFX.doorThunk(); SFX.engineOn(); }
 }
 
 // True while the carrier is close enough to climb into a van on foot.
@@ -859,6 +1043,7 @@ function updateVan(dt) {
     if (Math.abs(dx) > Math.abs(dy)) van.facing = dx < 0 ? 'left' : 'right';
     else if (dy !== 0) van.facing = dy < 0 ? 'up' : 'down';
   }
+  SFX.engineRev(van.moving);
   p.x = van.x; p.y = van.y;
 }
 
@@ -899,7 +1084,11 @@ function updatePlayer(dt) {
   if (p.moving) {
     p.animTimer += dt;
     const frameDur = p.sneaking ? 0.22 : 0.14;
-    if (p.animTimer > frameDur) { p.animTimer = 0; p.animFrame = 1 - p.animFrame; }
+    if (p.animTimer > frameDur) {
+      p.animTimer = 0;
+      p.animFrame = 1 - p.animFrame;
+      SFX.step(p.sneaking);
+    }
   } else {
     p.animFrame = 0;
     p.animTimer = 0;
@@ -909,6 +1098,7 @@ function updatePlayer(dt) {
   for (const h of w.houses) {
     if (!h.mailbox.delivered && dist(p.x, p.y, h.mailbox.tx, h.mailbox.ty) < h.mailbox.r + p.r) {
       h.mailbox.delivered = true;
+      SFX.deliver();
       w.delivered++;
       updateHud();
     }
@@ -943,6 +1133,7 @@ function updateDog(dog, house, dt, w) {
   // roam, so slipping behind cover doesn't instantly reset it.
   const target = w.player;
   if (dog.seen) {
+    if (dog.lostTimer <= 0) SFX.bark(sfxGainAt(dog.x, dog.y));  // rising edge only
     dog.alertX = target.x;
     dog.alertY = target.y;
     dog.lostTimer = 1.4;
@@ -1092,6 +1283,9 @@ function updateDogsAndDetection(dt) {
 // -- a brief cutscene (dog rushes in, screen flash + shake) instead of an
 // instant cut to the busted overlay.
 function triggerCaught(dog) {
+  SFX.bark(1);
+  SFX.busted();
+  SFX.engineOff();
   state.mode = 'caught';
   state.caughtDog = dog;
   state.caughtTimer = 0;
@@ -1644,7 +1838,7 @@ requestAnimationFrame(loop);
 setInterval(() => { if (state.mode !== 'playing' && state.mode !== 'caught') draw(); }, 500);
 
 /* ---------- Button wiring ---------- */
-document.getElementById('btn-start').onclick = () => startGame();
+document.getElementById('btn-start').onclick = () => { SFX.resume(); startGame(); };
 document.getElementById('btn-howto').onclick = () => { state.mode = 'howto'; showOnly('howto'); };
 document.getElementById('btn-howto-back').onclick = () => { state.mode = 'menu'; showOnly('menu'); };
 document.getElementById('btn-li-go').onclick = () => beginPlaying();
