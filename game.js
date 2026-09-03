@@ -198,7 +198,8 @@ const MAILBOX_STYLES = Object.keys(ASSET_PATHS.mailboxes);
 
 const STREET_W = 170;      // horizontal street band width
 const PLAYER_R = 11;       // player collision radius, also sizes mailbox approach clearance
-const VAN_H = 58;          // rendered van height; length follows the sprite's aspect
+const VAN_H = 69;          // rendered van height; the sprite includes the tyres,
+                           // so this is taller than the body alone. Length follows the aspect.
 const VAN_SPEED = 260;     // noticeably quicker than the 130 the carrier walks
 const VAN_ENTER_R = 62;    // how close you must be to climb in
 const WORLD_W = 900;       // exactly the canvas width: fills it edge to edge,
