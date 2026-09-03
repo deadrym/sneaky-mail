@@ -177,3 +177,11 @@ button:active { transform: translateY(1px); }
   border-radius: 999px;
   font-size: 13px;
 }
+
+#hud-satchel {
+  letter-spacing: 2px;
+  color: var(--accent);
+}
+#hud-satchel.empty {
+  color: #ff7a7a;
+}

@@ -116,6 +116,19 @@ const SFX = {
     const t = this.actx.currentTime;
     [523, 659, 784, 1047].forEach((f, i) => this.tone('triangle', f, t + i * 0.10, 0.20, 0.01, 0.24));
   },
+  restock() {
+    if (!this.actx || this.muted) return;
+    const t = this.actx.currentTime;
+    this.tone('triangle', 440, t, 0.14, 0.01, 0.09);
+    this.tone('triangle', 587, t + 0.07, 0.14, 0.01, 0.12);
+  },
+  horn() {
+    if (!this.actx || this.muted) return;
+    const t = this.actx.currentTime;
+    // two stacked square tones a fifth apart reads as a small van horn
+    this.tone('square', 392, t, 0.20, 0.02, 0.42);
+    this.tone('square', 587, t, 0.15, 0.02, 0.42);
+  },
   doorThunk() {
     if (!this.actx || this.muted) return;
     const t = this.actx.currentTime;
@@ -372,7 +385,13 @@ const PLAYER_R = 11;       // player collision radius, also sizes mailbox approa
 const VAN_H = 69;          // rendered van height; the sprite includes the tyres,
                            // so this is taller than the body alone. Length follows the aspect.
 const VAN_SPEED = 260;     // noticeably quicker than the 130 the carrier walks
-const VAN_ENTER_R = 62;    // how close you must be to climb in
+const VAN_ENTER_R = 62;    // how close you must be to climb in, and to restock from it
+const SATCHEL = 5;         // letters the carrier holds before returning to the van
+const HORN_R = 520;        // how far the horn carries: comfortably covers the
+                           // yard you are parked alongside, but not the next
+                           // lot's, so where you park still decides who hears
+const HORN_LURE = 3.6;     // seconds a lured dog spends investigating the noise
+const HORN_COOLDOWN = 6;   // seconds before the horn can be sounded again
 const WORLD_W = 900;       // exactly the canvas width: fills it edge to edge,
                            // and the camera never pans sideways
 const MARGIN_TOP = 150;    // grass verge above the first lot, where the player starts
@@ -660,6 +679,7 @@ window.addEventListener('keydown', (e) => {
   if (e.key.toLowerCase() === 'c') state.showCollision = !state.showCollision;
   if (e.key.toLowerCase() === 'm') { SFX.setMuted(!SFX.muted); updateHud(); }
   if (e.key === ' ' && !e.repeat && state.mode === 'playing') toggleVan();
+  if (e.key.toLowerCase() === 'h' && !e.repeat && state.mode === 'playing') soundHorn();
 });
 window.addEventListener('keyup', (e) => { keys[e.key.toLowerCase()] = false; });
 
@@ -725,7 +745,7 @@ function buildWorld(levelIndex) {
   const worldH = cursorY + MARGIN_BOTTOM;
   // One van, parked on the vertical road -- that road joins every street, so
   // a single van can reach the whole route.
-  vans.push({ x: Math.round(VROAD_W / 2), y: MARGIN_TOP + 40, facing: 'down', moving: false });
+  vans.push({ x: Math.round(VROAD_W / 2), y: MARGIN_TOP + 40, facing: 'down', moving: false, hornCd: 0 });
   const totalMail = houses.length;
 
   // static decorative elements, precomputed once so they don't flicker/jitter each frame
@@ -790,6 +810,8 @@ function buildWorld(levelIndex) {
       moving: false,
       animFrame: 0,
       animTimer: 0,
+      mail: SATCHEL,        // letters in hand; the round's remainder lives in the van
+      van: null,
     },
     startPlayer: { x: startX, y: MARGIN_TOP - 32 },
   };
@@ -958,6 +980,13 @@ function updateHud() {
   document.getElementById('hud-level').textContent = `Level ${state.level + 1}/${LEVELS.length}`;
   const w = state.world;
   document.getElementById('hud-mail').textContent = w ? `Mail ${w.delivered}/${w.totalMail}` : 'Mail 0/0';
+  const sat = document.getElementById('hud-satchel');
+  if (sat) {
+    const n = w ? w.player.mail : SATCHEL;
+    sat.textContent = '✉'.repeat(n) + '·'.repeat(Math.max(0, SATCHEL - n));
+    sat.classList.toggle('empty', n === 0);
+    sat.title = n === 0 ? 'Out of mail — go back to the van' : `${n} letter${n === 1 ? '' : 's'} in hand`;
+  }
   document.getElementById('hud-lives').textContent = '❤'.repeat(Math.max(0, state.lives));
   const mute = document.getElementById('hud-mute');
   if (mute) {
@@ -1022,6 +1051,30 @@ function vanOnRoad(w, x, y) {
   return w.crossStreets.some((b) => y > b.y0 + M && y < b.y1 - 24) && x > M && x < w.worldW - M;
 }
 
+// The horn is the van's real tool. It pulls every dog in earshot to the
+// noise -- they break off patrol and walk toward the van, which is the only
+// way to draw a guard off the mailbox side of its yard. The cost is that it
+// also wakes nappers, so the breeds you could previously wait out stop
+// handing you free windows.
+function soundHorn() {
+  const w = state.world;
+  if (!w) return;
+  const p = w.player;
+  if (!p.van || p.van.hornCd > 0) return;
+  const van = p.van;
+  van.hornCd = HORN_COOLDOWN;
+  SFX.horn();
+  for (const h of w.houses) {
+    for (const dog of h.dogs) {
+      if (dist(dog.x, dog.y, van.x, van.y) > HORN_R) continue;
+      dog.lureTimer = HORN_LURE;
+      dog.lureX = van.x;
+      dog.lureY = van.y;
+      if (dog.state === 'asleep') { dog.state = 'awake'; dog.sleepTimer = 3 + Math.random() * 3; }
+    }
+  }
+}
+
 function updateVan(dt) {
   const w = state.world;
   const p = w.player;
@@ -1031,6 +1084,7 @@ function updateVan(dt) {
   if (keys['arrowdown'] || keys['s']) dy += 1;
   if (keys['arrowleft'] || keys['a']) dx -= 1;
   if (keys['arrowright'] || keys['d']) dx += 1;
+  van.hornCd = Math.max(0, van.hornCd - dt);
   van.moving = dx !== 0 || dy !== 0;
   if (van.moving) {
     const len = Math.hypot(dx, dy);
@@ -1094,10 +1148,20 @@ function updatePlayer(dt) {
     p.animTimer = 0;
   }
 
+  // the van carries the round: walking up to it refills the satchel
+  for (const van of w.vans) {
+    if (p.mail < SATCHEL && dist(p.x, p.y, van.x, van.y) < VAN_ENTER_R) {
+      p.mail = SATCHEL;
+      SFX.restock();
+      updateHud();
+    }
+  }
+
   // mailbox delivery
   for (const h of w.houses) {
-    if (!h.mailbox.delivered && dist(p.x, p.y, h.mailbox.tx, h.mailbox.ty) < h.mailbox.r + p.r) {
+    if (!h.mailbox.delivered && p.mail > 0 && dist(p.x, p.y, h.mailbox.tx, h.mailbox.ty) < h.mailbox.r + p.r) {
       h.mailbox.delivered = true;
+      p.mail--;
       SFX.deliver();
       w.delivered++;
       updateHud();
@@ -1159,6 +1223,29 @@ function updateDog(dog, house, dt, w) {
             && ny > yr0.y + 8 && ny < yr0.y + yr0.h - 8) dog.y = ny;
       }
     }
+    return;
+  }
+
+  // Drawn to the horn: head for the noise instead of patrolling. Actually
+  // seeing the player outranks this, so a lure never protects you once
+  // you're in view.
+  if (dog.lureTimer > 0) {
+    dog.lureTimer -= dt;
+    const dogR = 12 * breed.size;
+    const yr1 = house.yardRect;
+    const dx = dog.lureX - dog.x, dy = dog.lureY - dog.y;
+    const d = Math.hypot(dx, dy);
+    dog.angle = turnToward(dog.angle, Math.atan2(dy, dx), 5 * dt);
+    if (d > 8) {
+      const step = breed.speed * 0.85 * dt;
+      const nx = dog.x + (dx / d) * step, ny = dog.y + (dy / d) * step;
+      if (!house.solids.some((s) => circleRectOverlap(nx, dog.y, dogR, s))
+          && nx > yr1.x + 8 && nx < yr1.x + yr1.w - 8) dog.x = nx;
+      if (!house.solids.some((s) => circleRectOverlap(dog.x, ny, dogR, s))
+          && ny > yr1.y + 8 && ny < yr1.y + yr1.h - 8) dog.y = ny;
+    }
+    dog.wanderPhase = 'paused';
+    dog.wanderTimer = 0.2;
     return;
   }
 
@@ -1424,7 +1511,9 @@ function draw() {
   } else if (w.player.van) {
     ctx.font = 'bold 13px sans-serif';
     ctx.textAlign = 'center';
-    const label = 'SPACE to hop out';
+    const label = w.player.van.hornCd > 0
+      ? `horn ready in ${w.player.van.hornCd.toFixed(1)}s`
+      : 'SPACE to hop out  ·  H to sound the horn';
     const tw = ctx.measureText(label).width;
     const sx = w.player.x - state.camX, sy = w.player.y - state.camY - VAN_H / 2 - 14;
     ctx.fillStyle = 'rgba(12,16,14,0.82)';
