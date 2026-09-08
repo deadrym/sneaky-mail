@@ -703,6 +703,7 @@ const state = {
   caughtStartY: 0,
   shakeMag: 0,
   showCollision: false, // C toggles the obstacle-rectangle overlay
+  levelTime: 0,         // seconds spent actually playing the current street
 };
 
 function screens() {
@@ -722,6 +723,91 @@ function showOnly(name) {
   const s = screens();
   for (const k in s) s[k].classList.add('hidden');
   if (name && s[name]) s[name].classList.remove('hidden');
+  if (name === 'menu') renderMenuStats();
+}
+
+/* ---------- Local stats ----------
+   A tally of how the route has gone, kept in this browser's localStorage and
+   nowhere else: nothing is sent anywhere and nothing identifies the player.
+   Wiped by the Reset link on the menu, or by clearing site data. */
+const STATS_KEY = 'sneakyMailStats';
+const Stats = {
+  data: null,
+
+  load() {
+    let raw = {};
+    try { raw = JSON.parse(localStorage.getItem(STATS_KEY)) || {}; } catch (e) { /* private mode or corrupt */ }
+    const count = (v) => (Number.isFinite(v) && v > 0 ? Math.floor(v) : 0);
+    this.data = {
+      runs: count(raw.runs),           // times "Start Delivering" was pressed
+      cleared: count(raw.cleared),     // streets finished, across all runs
+      routes: count(raw.routes),       // full 10-street runs
+      busted: count(raw.busted),       // lives lost
+      delivered: count(raw.delivered), // letters into mailboxes
+      furthest: count(raw.furthest),   // highest street number reached
+      best: Array.isArray(raw.best)
+        ? raw.best.map((v) => (Number.isFinite(v) && v > 0 ? v : null))
+        : [],                          // best clear time per level, seconds
+    };
+  },
+
+  save() { try { localStorage.setItem(STATS_KEY, JSON.stringify(this.data)); } catch (e) { /* private mode */ } },
+
+  bump(key, by = 1) { this.data[key] += by; this.save(); },
+
+  reachedLevel(index) {
+    if (index + 1 > this.data.furthest) { this.data.furthest = index + 1; this.save(); }
+  },
+
+  // returns true when this run beat the stored time for the level
+  recordClear(index, seconds) {
+    const prev = this.data.best[index];
+    const record = !(prev > 0) || seconds < prev;
+    if (record) this.data.best[index] = seconds;
+    this.data.cleared++;
+    this.save();
+    return record;
+  },
+
+  reset() {
+    try { localStorage.removeItem(STATS_KEY); } catch (e) { /* private mode */ }
+    this.load();
+  },
+};
+Stats.load();
+
+function fmtTime(seconds) {
+  const s = Math.max(0, Math.round(seconds));
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+}
+
+function renderMenuStats() {
+  const wrap = document.getElementById('menu-stats');
+  if (!wrap) return;
+  const d = Stats.data;
+  if (!d.runs && !d.cleared) { wrap.innerHTML = ''; return; }
+
+  const line = [
+    `${d.runs} run${d.runs === 1 ? '' : 's'}`,
+    `${d.cleared} street${d.cleared === 1 ? '' : 's'} cleared`,
+    `${d.delivered} letter${d.delivered === 1 ? '' : 's'} delivered`,
+    d.routes ? `${d.routes} full route${d.routes === 1 ? '' : 's'}` : `best: street ${d.furthest}`,
+  ].join(' \u00b7 ');
+
+  const times = d.best
+    .map((t, i) => (t > 0 ? `<span><b>${i + 1}</b> ${fmtTime(t)}</span>` : null))
+    .filter(Boolean)
+    .join('');
+
+  wrap.innerHTML =
+    `<div class="stat-line">${line}</div>` +
+    (times ? `<div class="stat-times"><i>best times</i>${times}</div>` : '') +
+    '<button type="button" class="linkish" id="btn-stats-reset">reset stats</button>';
+
+  document.getElementById('btn-stats-reset').onclick = () => {
+    Stats.reset();
+    renderMenuStats();
+  };
 }
 
 /* ---------- Level / world generation ---------- */
@@ -909,6 +995,7 @@ function makeHouse(lot, lotX, topY, cfg, index) {
 function startGame() {
   state.level = 0;
   state.lives = 3;
+  Stats.bump('runs');
   goToLevelIntro();
 }
 
@@ -927,6 +1014,8 @@ function goToLevelIntro() {
     chipWrap.appendChild(chip);
   });
   document.getElementById('li-tutorial').style.display = state.level === 0 ? 'block' : 'none';
+  state.levelTime = 0;
+  Stats.reachedLevel(state.level);
   state.mode = 'levelintro';
   showOnly('levelintro');
   updateHud();
@@ -941,11 +1030,13 @@ function beginPlaying() {
 function restartLevel() {
   SFX.engineOff();
   state.world = buildWorld(state.level);
+  state.levelTime = 0;
   beginPlaying();
 }
 
 function loseLife(msg) {
   state.lives--;
+  Stats.bump('busted');
   updateHud();
   if (state.lives <= 0) {
     state.mode = 'gameover';
@@ -961,14 +1052,24 @@ function levelComplete() {
   SFX.levelDone();
   SFX.engineOff();
   state.mode = 'levelcomplete';
+  const seconds = state.levelTime;
+  const record = Stats.recordClear(state.level, seconds);
   document.getElementById('lc-msg').textContent =
     `Every mailbox on Street ${state.level + 1} served without a single bark.`;
+  const timeEl = document.getElementById('lc-time');
+  if (timeEl) {
+    const best = Stats.data.best[state.level];
+    timeEl.innerHTML = record
+      ? `Cleared in <b>${fmtTime(seconds)}</b> &mdash; new best!`
+      : `Cleared in <b>${fmtTime(seconds)}</b> &middot; best ${fmtTime(best)}`;
+  }
   showOnly('levelcomplete');
 }
 
 function nextLevel() {
   state.level++;
   if (state.level >= LEVELS.length) {
+    Stats.bump('routes');
     state.mode = 'win';
     showOnly('win');
   } else {
@@ -1164,6 +1265,7 @@ function updatePlayer(dt) {
       p.mail--;
       SFX.deliver();
       w.delivered++;
+      Stats.bump('delivered');
       updateHud();
     }
   }
@@ -1919,6 +2021,7 @@ function loop(t) {
   dt = Math.min(dt, 0.05);
 
   if (state.mode === 'playing') {
+    state.levelTime += dt;
     updatePlayer(dt);
     updateDogsAndDetection(dt);
     updateCamera();

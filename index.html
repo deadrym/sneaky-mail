@@ -34,6 +34,7 @@
       <p class="tagline">Deliver the mail. Don't wake the dogs.</p>
       <button id="btn-start">Start Delivering</button>
       <button id="btn-howto">How to Play</button>
+      <div id="menu-stats"></div>
       <p class="footer-note">10 streets. 10 breeds. Zero barks (hopefully).</p>
     </div>
 
@@ -94,6 +95,7 @@
       <img class="screen-portrait" src="assets/mailman/victory.png" alt="" />
       <h2>✅ Street Cleared!</h2>
       <p id="lc-msg"></p>
+      <p id="lc-time" class="lc-time"></p>
       <button id="btn-lc-next">Next Street</button>
     </div>
 
@@ -115,5 +117,24 @@
   </div>
 
   <script src="game.js"></script>
+
+  <!--
+    Traffic counting. GoatCounter is free for personal use and counts page
+    views without cookies, without storing IP addresses and without building
+    any profile of the visitor - so there is nothing here that needs a consent
+    banner. Sign up at https://www.goatcounter.com, then put your subdomain in
+    SITE below. Until you do, this block makes no network request at all.
+  -->
+  <script>
+    (function () {
+      var SITE = 'YOUR-GOATCOUNTER-SUBDOMAIN';
+      if (!SITE || SITE.indexOf('YOUR-') === 0) return; // not configured yet
+      var s = document.createElement('script');
+      s.async = true;
+      s.src = '//gc.zgo.at/count.js';
+      s.setAttribute('data-goatcounter', 'https://' + SITE + '.goatcounter.com/count');
+      document.body.appendChild(s);
+    })();
+  </script>
 </body>
 </html>

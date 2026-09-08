@@ -50,6 +50,9 @@ costs you as much as it buys.
   that turns the round into a route-planning problem.
 - **Hand-composed lots** built from individual sprites, arranged in a
   companion visual editor rather than hard-coded.
+- **A local scoreboard** on the menu — runs, streets cleared, letters
+  delivered and a best time per street — kept in `localStorage` on your own
+  device. Nothing is uploaded and there's a reset link right next to it.
 
 ## Notes on the build
 
@@ -80,6 +83,14 @@ the tyres, so a plain background fill ate the wheels.
 the van engine, delivery chimes — so there are no audio files in the repo.
 Barks are attenuated by distance, which turns the pack into a rough
 proximity cue.
+
+## Counting visits
+
+`index.html` ends with an opt-in block for [GoatCounter](https://www.goatcounter.com),
+which counts page views without cookies, without storing IP addresses and
+without profiling the visitor — so there's nothing to put a consent banner in
+front of. It's inert as shipped: set `SITE` to your GoatCounter subdomain to
+switch it on, and until you do, the page makes no third-party request at all.
 
 ## Layout
 
