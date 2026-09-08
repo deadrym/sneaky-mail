@@ -248,3 +248,56 @@ button.linkish:hover {
   font-size: 10px;
   opacity: 0.7;
 }
+
+/* Per-street rating badges */
+.badges {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin: 4px 0 8px;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 13px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: bold;
+  border: 1px solid transparent;
+}
+.badge i { font-style: normal; font-size: 14px; }
+
+.badge.earned {
+  background: rgba(255, 183, 3, 0.16);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.badge.missed {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.14);
+  color: #8d8879;
+}
+.badge.missed i { filter: grayscale(1); opacity: 0.5; }
+
+.lc-rank {
+  margin: 0 0 2px;
+  font-size: 14px;
+  font-weight: bold;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #a9a396;
+}
+.lc-rank.rank-2 { color: #e2dccb; }
+.lc-rank.rank-3 { color: var(--accent); }
+
+.stat-times u {
+  text-decoration: none;
+  font-size: 8px;
+  vertical-align: 2px;
+  letter-spacing: 1px;
+}
+.stat-times u.on { color: var(--accent); }
+.stat-times u.off { color: rgba(255, 255, 255, 0.18); }

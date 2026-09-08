@@ -50,9 +50,13 @@ costs you as much as it buys.
   that turns the round into a route-planning problem.
 - **Hand-composed lots** built from individual sprites, arranged in a
   companion visual editor rather than hard-coded.
+- **Three badges per street** — *Swift* (beat the par time), *Unseen* (no dog
+  ever laid eyes on you) and *Flawless* (no lives lost). All three is an Ace
+  Carrier. Clearing a street is easy; clearing it clean is the actual game.
 - **A local scoreboard** on the menu — runs, streets cleared, letters
-  delivered and a best time per street — kept in `localStorage` on your own
-  device. Nothing is uploaded and there's a reset link right next to it.
+  delivered, and a best time and badge set per street — kept in `localStorage`
+  on your own device. Nothing is uploaded and there's a reset link right next
+  to it.
 
 ## Notes on the build
 
@@ -72,6 +76,15 @@ reachable and no dog starts wedged inside a solid. This caught a real
 failure: when the mailboxes were moved to sit against the porches, four of
 five lots became undeliverable, because the delivery radius was smaller than
 the distance the house's own footprint held the player back.
+
+**Par times are derived, not typed in.** The target time for a street is
+computed from the street itself: drive the van down the road to the next pair
+of houses, walk out to those two mailboxes and back for the next two letters,
+straight-line at the carrier's pace, then padded for the detours a yard full
+of solids forces and for the dogs you have to wait out. Change a level's house
+count or move a mailbox in the editor and its par moves with it, which is the
+same reason collision is derived rather than authored — hand-tuned numbers go
+stale the moment the thing they describe changes.
 
 **Sprites were cut programmatically.** The art arrived as sheets, so the
 frames are separated with connected-component labelling and each component

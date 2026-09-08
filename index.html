@@ -51,6 +51,7 @@
         <li><b>Mail van:</b> Space to get in and out — dogs can't see you inside, but you can't deliver from it either</li>
         <li><b>Your satchel holds 2 letters.</b> Walk back to the van to load up again</li>
         <li><b>Horn:</b> H, from the driver's seat — every dog in earshot breaks off and comes to investigate, which is how you pull one away from its mailbox. It wakes the nappers too</li>
+        <li><b>Ratings:</b> every street is scored on three badges &mdash; <b>Swift</b> (beat the par time), <b>Unseen</b> (no dog ever laid eyes on you) and <b>Flawless</b> (no lives lost). All three earns Ace Carrier</li>
         <li><b>Pause:</b> P &nbsp; <b>Restart level:</b> R &nbsp; <b>Mute:</b> M</li>
       </ul>
       <button id="btn-howto-back">Back</button>
@@ -95,6 +96,8 @@
       <img class="screen-portrait" src="assets/mailman/victory.png" alt="" />
       <h2>✅ Street Cleared!</h2>
       <p id="lc-msg"></p>
+      <div id="lc-badges" class="badges"></div>
+      <p id="lc-rank" class="lc-rank"></p>
       <p id="lc-time" class="lc-time"></p>
       <button id="btn-lc-next">Next Street</button>
     </div>
@@ -104,6 +107,7 @@
       <img class="screen-portrait" src="assets/mailman/victory.png" alt="" />
       <h2>🏆 Route Complete!</h2>
       <p>You delivered every letter on every street without a single bark. Sneaky Mail Legend!</p>
+      <p id="win-summary" class="lc-time"></p>
       <button id="btn-win-restart">Play Again</button>
     </div>
 

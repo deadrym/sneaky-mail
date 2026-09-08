@@ -703,7 +703,9 @@ const state = {
   caughtStartY: 0,
   shakeMag: 0,
   showCollision: false, // C toggles the obstacle-rectangle overlay
-  levelTime: 0,         // seconds spent actually playing the current street
+  levelTime: 0,           // seconds spent actually playing the current street
+  spotted: false,         // has any dog laid eyes on the carrier this street
+  livesLostHere: 0,       // busts on this street, across retries
 };
 
 function screens() {
@@ -724,6 +726,70 @@ function showOnly(name) {
   for (const k in s) s[k].classList.add('hidden');
   if (name && s[name]) s[name].classList.remove('hidden');
   if (name === 'menu') renderMenuStats();
+}
+
+/* ---------- Level ratings ----------
+   Three badges per street, each answering a different question about how the
+   round was played rather than just whether it was survived. */
+const RATINGS = [
+  { key: 'swift',    bit: 1, icon: '\u23f1', label: 'Swift',    hint: 'beat the par time' },
+  { key: 'unseen',   bit: 2, icon: '\ud83d\udc41', label: 'Unseen',   hint: 'never once spotted' },
+  { key: 'flawless', bit: 4, icon: '\u2764', label: 'Flawless', hint: 'no lives lost' },
+];
+const RANKS = ['Delivered', 'Steady Hand', 'Sharp Route', 'Ace Carrier'];
+const PAR_SLACK = 1.6;   // straight lines don't survive a yard full of solids
+const PAR_FIXED = 10;    // and a stealth route involves standing still a lot
+const PAR_PER_DOG = 1.6; // every dog on the street is a wait you may have to sit out
+
+/* Par is derived from the street, not hand-tuned per level, and it models
+   how the route is actually meant to be run: drive the van down the road to
+   the next pair of houses, walk out to those two mailboxes and back for the
+   next two letters. Straight-line walking is then padded, because a yard full
+   of solids and a dog to wait out is never a straight line. Levels can be
+   re-tuned freely and par follows them. */
+function parTime(w) {
+  const roadX = w.vans[0].x;
+  let vanY = w.vans[0].y;
+  let driven = 0;
+  let walked = 0;
+
+  for (let i = 0; i < w.houses.length; i += SATCHEL) {
+    const group = w.houses.slice(i, i + SATCHEL);
+    const stopY = group[0].mailbox.ty;
+    driven += Math.abs(stopY - vanY);
+    vanY = stopY;
+
+    let x = roadX;
+    let y = vanY;
+    for (const h of group) {
+      walked += dist(x, y, h.mailbox.tx, h.mailbox.ty);
+      x = h.mailbox.tx;
+      y = h.mailbox.ty;
+    }
+    // back to the van for the next handful, unless that was the last group
+    if (i + SATCHEL < w.houses.length) walked += dist(x, y, roadX, vanY);
+  }
+
+  const dogs = w.houses.reduce((n, h) => n + h.dogs.length, 0);
+  return driven / VAN_SPEED
+       + (walked / w.player.speed) * PAR_SLACK
+       + dogs * PAR_PER_DOG
+       + PAR_FIXED;
+}
+
+function ratePlay() {
+  return {
+    swift: state.levelTime <= state.world.par,
+    unseen: !state.spotted,
+    flawless: state.livesLostHere === 0,
+  };
+}
+
+function badgeMask(earned) {
+  return RATINGS.reduce((m, r) => m | (earned[r.key] ? r.bit : 0), 0);
+}
+function badgeCount(mask) {
+  return RATINGS.reduce((n, r) => n + ((mask & r.bit) ? 1 : 0), 0);
 }
 
 /* ---------- Local stats ----------
@@ -748,6 +814,9 @@ const Stats = {
       best: Array.isArray(raw.best)
         ? raw.best.map((v) => (Number.isFinite(v) && v > 0 ? v : null))
         : [],                          // best clear time per level, seconds
+      badges: Array.isArray(raw.badges)
+        ? raw.badges.map((v) => (Number.isFinite(v) ? v & 7 : 0))
+        : [],                          // best single-run badge mask per level
     };
   },
 
@@ -760,13 +829,21 @@ const Stats = {
   },
 
   // returns true when this run beat the stored time for the level
-  recordClear(index, seconds) {
+  recordClear(index, seconds, mask) {
     const prev = this.data.best[index];
     const record = !(prev > 0) || seconds < prev;
     if (record) this.data.best[index] = seconds;
+    // a single run's badges, never a union across attempts: three badges
+    // should mean one round earned all three
+    const prevMask = this.data.badges[index] || 0;
+    if (badgeCount(mask) > badgeCount(prevMask)) this.data.badges[index] = mask;
     this.data.cleared++;
     this.save();
     return record;
+  },
+
+  totalBadges() {
+    return this.data.badges.reduce((n, m) => n + badgeCount(m || 0), 0);
   },
 
   reset() {
@@ -792,10 +869,18 @@ function renderMenuStats() {
     `${d.cleared} street${d.cleared === 1 ? '' : 's'} cleared`,
     `${d.delivered} letter${d.delivered === 1 ? '' : 's'} delivered`,
     d.routes ? `${d.routes} full route${d.routes === 1 ? '' : 's'}` : `best: street ${d.furthest}`,
+    `${Stats.totalBadges()}/${LEVELS.length * RATINGS.length} badges`,
   ].join(' \u00b7 ');
 
   const times = d.best
-    .map((t, i) => (t > 0 ? `<span><b>${i + 1}</b> ${fmtTime(t)}</span>` : null))
+    .map((t, i) => {
+      if (!(t > 0)) return null;
+      const mask = d.badges[i] || 0;
+      const dots = RATINGS
+        .map((r) => `<u class="${mask & r.bit ? 'on' : 'off'}">\u25cf</u>`)
+        .join('');
+      return `<span><b>${i + 1}</b> ${fmtTime(t)} ${dots}</span>`;
+    })
     .filter(Boolean)
     .join('');
 
@@ -874,7 +959,7 @@ function buildWorld(levelIndex) {
   }
 
   const startX = VROAD_W / 2;
-  return {
+  const world = {
     cfg,
     houses,
     worldW,
@@ -901,6 +986,8 @@ function buildWorld(levelIndex) {
     },
     startPlayer: { x: startX, y: MARGIN_TOP - 32 },
   };
+  world.par = parTime(world);
+  return world;
 }
 
 // Places one lot at (lotX, topY): the scene image is drawn as-is, and its
@@ -1015,6 +1102,8 @@ function goToLevelIntro() {
   });
   document.getElementById('li-tutorial').style.display = state.level === 0 ? 'block' : 'none';
   state.levelTime = 0;
+  state.spotted = false;
+  state.livesLostHere = 0;
   Stats.reachedLevel(state.level);
   state.mode = 'levelintro';
   showOnly('levelintro');
@@ -1031,11 +1120,13 @@ function restartLevel() {
   SFX.engineOff();
   state.world = buildWorld(state.level);
   state.levelTime = 0;
+  state.spotted = false;   // a fresh attempt, but livesLostHere carries over
   beginPlaying();
 }
 
 function loseLife(msg) {
   state.lives--;
+  state.livesLostHere++;
   Stats.bump('busted');
   updateHud();
   if (state.lives <= 0) {
@@ -1053,16 +1144,43 @@ function levelComplete() {
   SFX.engineOff();
   state.mode = 'levelcomplete';
   const seconds = state.levelTime;
-  const record = Stats.recordClear(state.level, seconds);
+  const earned = ratePlay();
+  const mask = badgeMask(earned);
+  const prevBest = Stats.data.best[state.level];
+  Stats.recordClear(state.level, seconds, mask);
+
   document.getElementById('lc-msg').textContent =
     `Every mailbox on Street ${state.level + 1} served without a single bark.`;
+
   const timeEl = document.getElementById('lc-time');
   if (timeEl) {
-    const best = Stats.data.best[state.level];
-    timeEl.innerHTML = record
-      ? `Cleared in <b>${fmtTime(seconds)}</b> &mdash; new best!`
-      : `Cleared in <b>${fmtTime(seconds)}</b> &middot; best ${fmtTime(best)}`;
+    // "new best" only means beating a time that was already there; a first
+    // clear is technically the best but there was nothing to beat
+    let note = '';
+    if (prevBest > 0) {
+      note = seconds < prevBest
+        ? ' &mdash; new best!'
+        : ` &middot; best ${fmtTime(prevBest)}`;
+    }
+    timeEl.innerHTML =
+      `Cleared in <b>${fmtTime(seconds)}</b>${note} &middot; par ${fmtTime(state.world.par)}`;
   }
+
+  const badgeEl = document.getElementById('lc-badges');
+  if (badgeEl) {
+    badgeEl.innerHTML = RATINGS
+      .map((r) => `<span class="badge ${earned[r.key] ? 'earned' : 'missed'}" title="${r.hint}">` +
+                  `<i>${r.icon}</i>${r.label}</span>`)
+      .join('');
+  }
+
+  const rankEl = document.getElementById('lc-rank');
+  if (rankEl) {
+    const n = badgeCount(mask);
+    rankEl.textContent = RANKS[n];
+    rankEl.className = `lc-rank rank-${n}`;
+  }
+
   showOnly('levelcomplete');
 }
 
@@ -1070,6 +1188,14 @@ function nextLevel() {
   state.level++;
   if (state.level >= LEVELS.length) {
     Stats.bump('routes');
+    const winEl = document.getElementById('win-summary');
+    if (winEl) {
+      const got = Stats.totalBadges();
+      const all = LEVELS.length * RATINGS.length;
+      winEl.innerHTML = got >= all
+        ? `<b>${got}/${all} badges</b> &mdash; every street swift, unseen and flawless. Nothing left to prove.`
+        : `<b>${got}/${all} badges</b> earned across the route. Swift, Unseen and Flawless are still out there.`;
+    }
     state.mode = 'win';
     showOnly('win');
   } else {
@@ -1449,6 +1575,7 @@ function updateDogsAndDetection(dt) {
       updateDog(dog, h, dt, w);
       const seen = canSeePlayer(dog, h, p);
       dog.seen = seen;
+      if (seen) state.spotted = true;
       if (seen) {
         const rate = breedFillRate(dog.breed, p.sneaking);
         dog.suspicion = clamp(dog.suspicion + rate * dt, 0, 1);
