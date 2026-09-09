@@ -19,11 +19,18 @@ html, body {
   overflow: hidden;
 }
 
+/* The board is authored at a fixed 900x600 and then scaled as a whole to fit
+   whatever window it lands in, so the HUD, the overlays and the on-screen
+   controls all keep their proportions instead of each needing a breakpoint.
+   --game-scale is set from JS on resize. */
 #game-wrap {
-  position: relative;
+  position: fixed;
+  left: 50%;
+  top: 50%;
   width: 900px;
   height: 600px;
-  margin: 20px auto;
+  transform: translate(-50%, -50%) scale(var(--game-scale, 1));
+  transform-origin: center center;
   border-radius: 10px;
   overflow: hidden;
   box-shadow: 0 10px 40px rgba(0,0,0,0.5);
@@ -301,3 +308,134 @@ button.linkish:hover {
 }
 .stat-times u.on { color: var(--accent); }
 .stat-times u.off { color: rgba(255, 255, 255, 0.18); }
+
+/* ---------- On-screen controls ---------- */
+/* Pinned to the window rather than the board: the board scales down on a
+   small screen, and a thumbstick that shrank with it would be unusable. */
+#touch {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  pointer-events: none;   /* only the controls themselves take input */
+}
+#touch.hidden { display: none; }
+
+/* A generous invisible catchment around the stick: thumbs are imprecise, and
+   a miss that does nothing feels worse than a stick that is slightly forgiving. */
+#stick-zone {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 300px;
+  height: 260px;
+  pointer-events: auto;
+}
+
+#stick {
+  position: absolute;
+  left: 34px;
+  bottom: 34px;
+  width: 132px;
+  height: 132px;
+  border-radius: 50%;
+  background: rgba(20, 20, 24, 0.42);
+  border: 2px solid rgba(255, 255, 255, 0.22);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.35);
+}
+
+#stick-nub {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 58px;
+  height: 58px;
+  margin: -29px 0 0 -29px;
+  border-radius: 50%;
+  background: rgba(255, 183, 3, 0.82);
+  border: 2px solid rgba(0, 0, 0, 0.35);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+}
+
+/* A 2x2 pad rather than a column: a phone held sideways is only ~390px tall,
+   and a stack of four would run off the top of it. */
+#touch-buttons {
+  position: absolute;
+  right: 22px;
+  bottom: 22px;
+  display: grid;
+  grid-template-columns: repeat(2, auto);
+  gap: 11px;
+  pointer-events: auto;
+}
+
+.tc-btn {
+  width: 78px;
+  height: 78px;
+  padding: 0;
+  margin: 0;
+  border-radius: 50%;
+  background: rgba(20, 20, 24, 0.62);
+  border: 2px solid rgba(255, 255, 255, 0.24);
+  color: #f4f1ea;
+  font-size: 11px;
+  font-weight: bold;
+  letter-spacing: 0.04em;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  pointer-events: auto;
+  transition: none;
+}
+.tc-btn i { font-style: normal; font-size: 24px; line-height: 1; }
+.tc-btn:hover { background: rgba(20, 20, 24, 0.62); transform: none; }
+.tc-btn.pressed,
+.tc-btn.active {
+  background: rgba(255, 183, 3, 0.85);
+  border-color: var(--accent);
+  color: #1b1b1b;
+}
+.tc-btn.disabled { opacity: 0.35; }
+
+
+
+/* ---------- Portrait warning ---------- */
+#screen-rotate { display: none; }
+
+body.touch-active #screen-rotate {
+  display: none;
+}
+@media (orientation: portrait) {
+  body.touch-active #screen-rotate {
+    display: flex;
+    position: fixed;
+    inset: 0;
+    z-index: 50;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 30px;
+    background: #222831;
+  }
+}
+#screen-rotate h2 { font-size: 22px; margin: 0 0 8px; }
+#screen-rotate p { margin: 0; color: #d8d3c4; line-height: 1.5; }
+.rotate-icon {
+  font-size: 54px;
+  margin: 0 0 10px !important;
+  display: block;
+  animation: tip 2.4s ease-in-out infinite;
+}
+@keyframes tip {
+  0%, 40%, 100% { transform: rotate(0deg); }
+  60%, 90% { transform: rotate(-90deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .rotate-icon { animation: none; }
+}
+.tc-btn:active { transform: none; }

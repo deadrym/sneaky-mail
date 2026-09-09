@@ -22,6 +22,11 @@ serve it locally: `python3 -m http.server` and visit `localhost:8000`.
 | Sound the horn (from the driver's seat) | H |
 | Pause · Restart level · Mute | P · R · M |
 
+On a phone, turn it sideways: a thumbstick appears on the left and the sneak,
+van, horn and pause buttons on the right. The board is authored at a fixed
+900x600 and scaled as one piece to fit the window, so the HUD, overlays and
+controls all hold their proportions instead of each needing a breakpoint.
+
 Walk up to a mailbox to deliver — it's automatic, but your satchel only
 holds two letters, so you'll be walking back to the van to reload. Dogs
 can't see you while you're inside the van, and you can't deliver from it

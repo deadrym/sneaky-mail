@@ -683,6 +683,153 @@ window.addEventListener('keydown', (e) => {
 });
 window.addEventListener('keyup', (e) => { keys[e.key.toLowerCase()] = false; });
 
+/* ---------- On-screen controls ----------
+   Hidden until the first touch, so a laptop with a touchscreen doesn't get a
+   thumbstick it never asked for. The stick reports a direction the movement
+   code normalises exactly like a key press, so nothing downstream has to know
+   which one it came from. */
+const TOUCH = {
+  active: false,   // a touch has happened; show the controls
+  dx: 0,
+  dy: 0,
+  sneak: false,
+
+  enable() {
+    if (this.active) return;
+    this.active = true;
+    document.body.classList.add('touch-active');
+    syncTouchLayer();
+  },
+
+  centre() { this.dx = 0; this.dy = 0; },
+};
+
+function syncTouchLayer() {
+  const layer = document.getElementById('touch');
+  if (!layer) return;
+  const live = state.mode === 'playing' || state.mode === 'caught';
+  layer.classList.toggle('hidden', !(TOUCH.active && live));
+  if (!live) {
+    TOUCH.centre();
+    TOUCH.sneak = false;   // don't carry a held sneak across a level boundary
+    const sneakBtn = document.getElementById('tc-sneak');
+    if (sneakBtn) sneakBtn.classList.remove('active');
+  }
+}
+
+// keyboard and stick, merged. Keys win while one is held.
+function moveInput() {
+  let dx = 0;
+  let dy = 0;
+  if (keys['arrowup'] || keys['w']) dy -= 1;
+  if (keys['arrowdown'] || keys['s']) dy += 1;
+  if (keys['arrowleft'] || keys['a']) dx -= 1;
+  if (keys['arrowright'] || keys['d']) dx += 1;
+  if (dx === 0 && dy === 0) { dx = TOUCH.dx; dy = TOUCH.dy; }
+  return { dx, dy };
+}
+
+function initTouchControls() {
+  const zone = document.getElementById('stick-zone');
+  const stick = document.getElementById('stick');
+  const nub = document.getElementById('stick-nub');
+  if (!zone) return;
+
+  // A phone or tablet gets the controls straight away, so the portrait prompt
+  // appears before the first tap rather than after it. A laptop with a
+  // touchscreen reports a fine primary pointer and waits to be touched.
+  if (window.matchMedia('(pointer: coarse)').matches) TOUCH.enable();
+  window.addEventListener('touchstart', () => { SFX.resume(); TOUCH.enable(); }, { passive: true });
+
+  const NUB_TRAVEL = 34;   // px the nub slides from centre at full tilt
+  const DEADZONE = 0.24;   // a resting thumb wobbles; ignore it
+  let stickId = null;
+
+  const place = (dx, dy) => {
+    nub.style.transform = `translate(${dx * NUB_TRAVEL}px, ${dy * NUB_TRAVEL}px)`;
+  };
+
+  function aim(e) {
+    // the whole board is CSS-scaled, so measure the stick as rendered rather
+    // than assuming its authored size
+    const r = stick.getBoundingClientRect();
+    let dx = (e.clientX - (r.left + r.width / 2)) / (r.width / 2);
+    let dy = (e.clientY - (r.top + r.height / 2)) / (r.height / 2);
+    const len = Math.hypot(dx, dy);
+    if (len < DEADZONE) { TOUCH.centre(); place(0, 0); return; }
+    if (len > 1) { dx /= len; dy /= len; }
+    TOUCH.dx = dx;
+    TOUCH.dy = dy;
+    place(dx, dy);
+  }
+
+  function release(e) {
+    if (e.pointerId !== stickId) return;
+    stickId = null;
+    TOUCH.centre();
+    place(0, 0);
+  }
+
+  zone.addEventListener('pointerdown', (e) => {
+    TOUCH.enable();
+    stickId = e.pointerId;
+    zone.setPointerCapture(e.pointerId);
+    aim(e);
+    e.preventDefault();
+  });
+  zone.addEventListener('pointermove', (e) => { if (e.pointerId === stickId) aim(e); });
+  zone.addEventListener('pointerup', release);
+  zone.addEventListener('pointercancel', release);
+
+  const tap = (id, fn) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      TOUCH.enable();
+      SFX.resume();
+      fn(el);
+    });
+    // a pointerdown that turns into a click would fire the action twice
+    el.addEventListener('click', (e) => e.preventDefault());
+  };
+
+  tap('tc-sneak', (el) => {
+    TOUCH.sneak = !TOUCH.sneak;
+    el.classList.toggle('active', TOUCH.sneak);
+  });
+  tap('tc-van', () => { if (state.mode === 'playing') toggleVan(); });
+  tap('tc-horn', () => { if (state.mode === 'playing') soundHorn(); });
+  tap('tc-pause', () => togglePause());
+}
+
+/* ---------- Fit the board to the window ----------
+   Everything is authored against a fixed 900x600 and scaled as one piece, so
+   the HUD, overlays and controls keep their proportions instead of each
+   needing its own breakpoint. */
+function fitToWindow() {
+  const vv = window.visualViewport;
+  const vw = vv ? vv.width : window.innerWidth;
+  const vh = vv ? vv.height : window.innerHeight;
+  // breathing room on a desktop, every pixel on a phone -- and a phone held
+  // sideways is wide but short, so the short side is what decides
+  const pad = TOUCH.active || Math.min(vw, vh) < 560 ? 0 : 28;
+  const scale = Math.min((vw - pad) / 900, (vh - pad) / 600, 2);
+  document.documentElement.style.setProperty('--game-scale', String(Math.max(scale, 0.2)));
+}
+
+const portraitQuery = window.matchMedia('(orientation: portrait)');
+function onOrientationChange() {
+  // the rotate prompt covers the board, so don't leave the dogs running
+  if (portraitQuery.matches && TOUCH.active && state.mode === 'playing') togglePause();
+  fitToWindow();
+}
+if (portraitQuery.addEventListener) portraitQuery.addEventListener('change', onOrientationChange);
+window.addEventListener('resize', fitToWindow);
+window.addEventListener('orientationchange', onOrientationChange);
+if (window.visualViewport) window.visualViewport.addEventListener('resize', fitToWindow);
+fitToWindow();
+
 /* ---------- Game state ---------- */
 const state = {
   mode: 'loading', // loading, menu, howto, levelintro, playing, caught, paused, busted, gameover, levelcomplete, win
@@ -726,6 +873,7 @@ function showOnly(name) {
   for (const k in s) s[k].classList.add('hidden');
   if (name && s[name]) s[name].classList.remove('hidden');
   if (name === 'menu') renderMenuStats();
+  syncTouchLayer();
 }
 
 /* ---------- Level ratings ----------
@@ -1306,11 +1454,7 @@ function updateVan(dt) {
   const w = state.world;
   const p = w.player;
   const van = p.van;
-  let dx = 0, dy = 0;
-  if (keys['arrowup'] || keys['w']) dy -= 1;
-  if (keys['arrowdown'] || keys['s']) dy += 1;
-  if (keys['arrowleft'] || keys['a']) dx -= 1;
-  if (keys['arrowright'] || keys['d']) dx += 1;
+  const { dx, dy } = moveInput();
   van.hornCd = Math.max(0, van.hornCd - dt);
   van.moving = dx !== 0 || dy !== 0;
   if (van.moving) {
@@ -1332,13 +1476,9 @@ function updatePlayer(dt) {
   const w = state.world;
   const p = w.player;
   if (p.van) { updateVan(dt); return; }   // no walking, and no delivering, from the driver's seat
-  let dx = 0, dy = 0;
-  if (keys['arrowup'] || keys['w']) dy -= 1;
-  if (keys['arrowdown'] || keys['s']) dy += 1;
-  if (keys['arrowleft'] || keys['a']) dx -= 1;
-  if (keys['arrowright'] || keys['d']) dx += 1;
+  let { dx, dy } = moveInput();
 
-  p.sneaking = !!keys['shift'];
+  p.sneaking = !!keys['shift'] || TOUCH.sneak;
   p.moving = dx !== 0 || dy !== 0;
 
   if (p.moving) {
@@ -2176,4 +2316,5 @@ document.getElementById('btn-resume').onclick = () => togglePause();
 document.getElementById('btn-pause-restart').onclick = () => { restartLevel(); };
 document.getElementById('btn-pause-menu').onclick = () => { state.mode = 'menu'; showOnly('menu'); };
 
+initTouchControls();
 preloadImages(() => { resolveLotCollision(); state.mode = 'menu'; showOnly('menu'); });

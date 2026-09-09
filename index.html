@@ -53,6 +53,7 @@
         <li><b>Horn:</b> H, from the driver's seat — every dog in earshot breaks off and comes to investigate, which is how you pull one away from its mailbox. It wakes the nappers too</li>
         <li><b>Ratings:</b> every street is scored on three badges &mdash; <b>Swift</b> (beat the par time), <b>Unseen</b> (no dog ever laid eyes on you) and <b>Flawless</b> (no lives lost). All three earns Ace Carrier</li>
         <li><b>Pause:</b> P &nbsp; <b>Restart level:</b> R &nbsp; <b>Mute:</b> M</li>
+        <li><b>On a phone:</b> turn it sideways &mdash; thumbstick on the left, buttons on the right</li>
       </ul>
       <button id="btn-howto-back">Back</button>
     </div>
@@ -117,6 +118,29 @@
       <button id="btn-resume">Resume</button>
       <button id="btn-pause-restart">Restart Level</button>
       <button id="btn-pause-menu">Main Menu</button>
+    </div>
+  </div>
+
+  <!-- On-screen controls, pinned to the window rather than the scaled board.
+       Stays hidden until the first touch, so a laptop with a touchscreen
+       doesn't get a thumbstick it never asked for. -->
+  <div id="touch" class="hidden">
+    <div id="stick-zone">
+      <div id="stick"><div id="stick-nub"></div></div>
+    </div>
+    <div id="touch-buttons">
+      <button type="button" class="tc-btn" id="tc-pause"><i>&#9208;</i>Pause</button>
+      <button type="button" class="tc-btn" id="tc-horn"><i>&#128227;</i>Horn</button>
+      <button type="button" class="tc-btn" id="tc-van"><i>&#128666;</i>Van</button>
+      <button type="button" class="tc-btn" id="tc-sneak"><i>&#128099;</i>Sneak</button>
+    </div>
+  </div>
+
+  <div id="screen-rotate">
+    <div>
+      <p class="rotate-icon">&#128241;</p>
+      <h2>Turn your phone sideways</h2>
+      <p>Sneaky Mail needs the width &mdash; the street runs left to right.</p>
     </div>
   </div>
 
