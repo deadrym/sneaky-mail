@@ -241,6 +241,10 @@ const ASSET_PATHS = {
     rock: 'assets/props/rock.png',
     birdbath: 'assets/props/birdbath.png',
     lamppost: 'assets/props/lamppost.png',
+    tire: 'assets/props/tire.png',
+    trashcan: 'assets/props/trashcan.png',
+    swingset: 'assets/props/swingset.png',
+    fence: 'assets/props/fence.png',
     mailmanStand: 'assets/props/mailman_stand.png',
     mailmanWalk: 'assets/props/mailman_walk.png',
   },
@@ -420,6 +424,13 @@ const PROPS = {
   rock:     { h: 34,  footH: 0.70, footW: 0.88, solid: true },
   birdbath: { h: 52,  footH: 0.34, footW: 0.60, solid: true },
   lamppost: { h: 92,  footH: 0.10, footW: 0.30, solid: true },
+  // Yard clutter. sight is deliberately off for the see-through ones: a dog
+  // looks straight between a swing set's legs and through a picket fence, so
+  // these shape the route without handing the carrier free cover.
+  tire:     { h: 30,  footH: 0.80, footW: 0.88, solid: true },
+  trashcan: { h: 46,  footH: 0.34, footW: 0.72, solid: true, sight: true },
+  swingset: { h: 108, footH: 0.16, footW: 0.92, solid: true },
+  fence:    { h: 34,  footH: 0.55, footW: 0.96, solid: true },
 };
 
 const VROAD_W = 120;       // vertical road down the left, joining every street
