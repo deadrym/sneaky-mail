@@ -105,7 +105,7 @@ canvas#game {
 }
 
 .menu-portrait {
-  height: 140px;
+  height: 108px;
   image-rendering: pixelated;
   margin-bottom: 4px;
   filter: drop-shadow(0 8px 14px rgba(0,0,0,0.4));
@@ -127,7 +127,7 @@ canvas#game {
 .tagline { color: #d8d3c4; margin-top: 0; }
 
 .footer-note {
-  margin-top: 20px;
+  margin-top: 12px;
   font-size: 12px;
   opacity: 0.6;
 }
@@ -439,3 +439,32 @@ body.touch-active #screen-rotate {
   .rotate-icon { animation: none; }
 }
 .tc-btn:active { transform: none; }
+
+/* ---------- DeadRym Studios brand ---------- */
+.splash-logo {
+  width: min(420px, 62%);
+  height: auto;
+  margin-bottom: 18px;
+  filter: drop-shadow(0 10px 24px rgba(0, 0, 0, 0.45));
+}
+
+.brand {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  margin-top: 6px;
+}
+
+.brand-kicker {
+  font-size: 10px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: #8f8a7c;
+}
+
+.brand img {
+  width: 168px;
+  height: auto;
+  filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.4));
+}
